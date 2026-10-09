@@ -1,0 +1,22 @@
+=====================================================
+WORKSTREAM 05: NEURAL NETWORK ARCHITECTURE & CONFIG
+=====================================================
+
+1. Data Source:
+   - Inputs/Targets preprocessed from Workstream 03 (X_train_preprocessed.csv, y_train.csv, X_test_preprocessed.csv, y_test.csv).
+
+2. Model Architecture (MLPRegressor):
+   - Hidden Layers: (64, 32) - Đơn giản, vừa phải để tránh overfitting.
+   - Activation: ReLU.
+   - Solver: Adam (Optimizer).
+
+3. Overfitting Control & Validation:
+   - Early Stopping: True (Tự động dừng khi Validation Loss không giảm nữa).
+   - Validation Fraction: 0.1 (Dành 10% tập train làm validation set để theo dõi loss).
+   - Alpha (L2 Regularization): 0.0001.
+
+4. Outputs:
+   - Model Saved: nn_model.pkl
+   - Figure: loss_curve.png
+   - Predictions: pred_nn.csv
+   - Metrics: ../common/workstream05_metrics.json
