@@ -1,0 +1,2 @@
+model,MAE,RMSE,MSE,MAPE_percent
+LinearRegression,1.2139,1.5832,2.5065,21.08
