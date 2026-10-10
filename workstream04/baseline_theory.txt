@@ -89,19 +89,27 @@ Lý do không đưa day_of_week vào khóa nhóm:
   - Với 3-4 quan sát mỗi nhóm, giá trị trung bình rất nhiễu và dễ overfit.
 
 --------------------------------------------------------------------------------
-2. Baseline 2 - Linear Regression (hồi quy tuyến tính)
+2. Baseline 2 - Linear Regression 
 --------------------------------------------------------------------------------
 
 2.1. Ý tưởng
 ------------
 Thay vì chỉ dùng trung bình của (edge, slot), mô hình này giả định travel_time
-là một hàm tuyến tính của tất cả 26 đặc trưng đầu vào:
+là một hàm tuyến tính của 22 đặc trưng đầu vào (sau khi loại bỏ 4 cột tham
+chiếu để tránh đa cộng tuyến hoàn hảo):
 
-  - distance          (đã chuẩn hóa Z-score)
-  - is_weekend        (nhị phân 0/1)
-  - edge_id_*         (12 cột one-hot)
-  - time_slot_*       (5 cột one-hot)
-  - day_of_week_*     (7 cột one-hot)
+  - distance               (đã chuẩn hóa Z-score)
+  - edge_id_*              (11 cột one-hot, tham chiếu: A-B)
+  - time_slot_*            ( 4 cột one-hot, tham chiếu: khung 1)
+  - day_of_week_*          ( 6 cột one-hot, tham chiếu: Fri)
+
+Các cột bị loại bỏ khỏi ma trận đặc trưng:
+  - edge_id_A-B     : nhóm tham chiếu cho 12 cạnh.
+  - time_slot_1     : nhóm tham chiếu cho 5 khung giờ.
+  - day_of_week_Fri : nhóm tham chiếu cho 7 thứ.
+  - is_weekend      : cột dư thừa, vì is_weekend = day_of_week_Sat + day_of_week_Sun
+                      (tổ hợp tuyến tính chính xác của hai cột khác, không mang
+                      thêm thông tin mới).
 
 Mô hình sẽ tự học trọng số cho từng đặc trưng từ dữ liệu train.
 
@@ -116,7 +124,7 @@ Trong đó:
   - beta_0 : hệ số chặn (intercept).
   - beta_j : hệ số hồi quy của đặc trưng thứ j.
   - x_j    : giá trị của đặc trưng thứ j (đã chuẩn hóa).
-  - p = 26 : số đặc trưng đầu vào.
+  - p = 22 : số đặc trưng đầu vào sau khi drop 4 cột tham chiếu.
 
 Các hệ số beta được ước lượng bằng phương pháp bình phương nhỏ nhất (OLS -
 Ordinary Least Squares), tức tối thiểu hóa:
@@ -129,29 +137,62 @@ Nghiệm OLS có dạng đóng (closed-form):
 
     beta_hat  =  (X^T X)^{-1} X^T y
 
-Trong đó X là ma trận đặc trưng (n × p), y là vector target (n × 1).
+Trong đó X là ma trận đặc trưng (n × p), y là vector target (n × 1). Sau khi
+drop-first, ma trận X có full rank (rank = 22 = số cột), do đó (X^T X) khả
+nghịch và nghiệm beta_hat là duy nhất.
 
 2.3. Quy tắc dự báo
 -------------------
-Với mỗi dòng test, áp dụng trực tiếp công thức tuyến tính với 26 đặc trưng đã
-chuẩn hóa:
+Với mỗi dòng test, áp dụng trực tiếp công thức tuyến tính với 22 đặc trưng
+đã chuẩn hóa:
 
-    y_hat  =  beta_0  +  beta_1 * x_1  +  ...  +  beta_26 * x_26
+    y_hat  =  beta_0  +  beta_1 * x_1  +  ...  +  beta_22 * x_22
 
 Không cần fallback rule, vì mô hình dự báo dựa trên features (không phải tra
-cứu bảng). Mọi dòng test đều có đủ 26 đặc trưng để dự báo.
+cứu bảng). Mọi dòng test đều có đủ 22 đặc trưng để dự báo.
+
+Diễn giải hệ số: mỗi hệ số beta_j biểu diễn mức chênh lệch của travel_time
+so với nhóm tham chiếu tương ứng, khi các đặc trưng khác giữ nguyên.
 
 2.4. Ưu điểm và nhược điểm
 --------------------------
 Ưu điểm:
-  - Dùng được tất cả 26 đặc trưng, bao gồm distance, is_weekend, day_of_week.
-  - Diễn giải được hệ số: biết đặc trưng nào đóng góp nhiều.
-  - Nhanh, ổn định, ít overfit khi số features vừa phải (26 features / 1440 obs).
+  - Dùng được 22 đặc trưng (bao gồm distance và day_of_week).
+  - Hệ số hồi quy diễn giải được do đã loại bỏ đa cộng tuyến hoàn hảo bằng
+    kỹ thuật drop-first.
+  - Nhanh, ổn định, ít overfit khi số features vừa phải (22 features / 1440 obs).
   - Có thể xử lý được quan hệ giữa distance và travel_time mà Group Mean bỏ qua.
 
 Nhược điểm:
   - Giả định quan hệ tuyến tính, có thể sai trong thực tế.
   - Không nắm được tương tác phi tuyến giữa các đặc trưng.
   - Với one-hot encoding của edge_id, mô hình học hệ số riêng cho từng cạnh,
-    tương tự Group Mean nhưng có thêm thành phần distance và weekend.
+    tương tự Group Mean nhưng có thêm thành phần distance và day_of_week.
+
+2.5. Kỹ thuật drop-first và lý do sử dụng
+-----------------------------------------
+One-hot encoding đầy đủ cho 3 biến phân loại (edge_id, time_slot, day_of_week)
+tạo ra đa cộng tuyến hoàn hảo với intercept, vì tổng các cột trong mỗi nhóm
+luôn bằng 1 với mọi dòng. Cột is_weekend cũng dư thừa vì là tổng của hai cột
+day_of_week_Sat và day_of_week_Sun.
+
+Hệ quả nếu giữ nguyên ma trận one-hot đầy đủ:
+  - Ma trận X mất full rank (rank = 22 < số cột = 26).
+  - Hệ số hồi quy không duy nhất: vô số nghiệm cùng cho ra y_hat giống nhau.
+  - Chỉ diễn giải được hiệu giữa các hệ số trong cùng nhóm one-hot; không
+    diễn giải được giá trị tuyệt đối của từng hệ số, không diễn giải được
+    intercept, không so sánh được giữa các nhóm khác nhau.
+
+Giải pháp: bỏ 1 cột đại diện mỗi nhóm one-hot (gọi là nhóm tham chiếu) và
+bỏ cột is_weekend. Cụ thể bỏ 4 cột:
+  - edge_id_A-B     (tham chiếu: cạnh A-B)
+  - time_slot_1     (tham chiếu: khung 06:00-08:00)
+  - day_of_week_Fri (tham chiếu: thứ Sáu)
+  - is_weekend      (dư thừa)
+
+Sau khi drop, ma trận X có full rank 22 = 22. Hệ số hồi quy duy nhất và
+diễn giải được theo dạng "so với nhóm tham chiếu". Giá trị dự báo y_hat và
+các chỉ số MAE/RMSE/MSE/MAPE không thay đổi so với trước khi drop — vì việc
+bỏ các cột phụ thuộc tuyến tính không làm mất bất kỳ thông tin nào.
+
 
