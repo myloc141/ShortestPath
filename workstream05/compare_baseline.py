@@ -1,55 +1,74 @@
-#Cập nhật đọc đầy đủ thông số
 import os
-import pandas as pd
 import json
+import pandas as pd
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-COMMON_DIR = os.path.join(BASE_DIR, "..", "common")
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
+COMMON_DIR = os.path.join(PROJECT_ROOT, "common")
+
+def extract_metric_value(item, keys):
+    """Hàm hỗ trợ lấy giá trị bất kể hoa hay thường"""
+    for k in keys:
+        if k in item:
+            return item[k]
+    return "N/A"
 
 def main():
-    print("=== SO SÁNH NEURAL NETWORK VỚI BASELINE (WORKSTREAM 4) ===")
+    print("=== BẢNG SO SÁNH CÁC MÔ HÌNH BASELINE VÀ NEURAL NETWORK ===")
 
-    nn_json_path = os.path.join(COMMON_DIR, "workstream05_metrics.json")
-    
-    if not os.path.exists(nn_json_path):
-        print("Vui lòng chạy evaluate_nn.py trước!")
-        return
+    all_models = []
 
-    with open(nn_json_path, "r", encoding="utf-8") as f:
-        nn_metrics = json.load(f)
-
-    # Đọc tất cả các file metrics của các workstream khác trong folder common
-    all_metrics = [nn_metrics]
-    
     if os.path.exists(COMMON_DIR):
         for file in os.listdir(COMMON_DIR):
-            if file.endswith("_metrics.json") and file != "workstream05_metrics.json":
+            if file.endswith("_metrics.json"):
+                file_path = os.path.join(COMMON_DIR, file)
                 try:
-                    with open(os.path.join(COMMON_DIR, file), "r", encoding="utf-8") as f:
-                        all_metrics.append(json.load(f))
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        
+                        # Nếu file chứa một danh sách nhiều mô hình (như WS4)
+                        if isinstance(data, list):
+                            for item in data:
+                                if isinstance(item, dict):
+                                    all_models.append(item)
+                        # Nếu file chứa một mô hình duy nhất (như WS5)
+                        elif isinstance(data, dict):
+                            all_models.append(data)
                 except Exception as e:
-                    pass
+                    print(f"Không thể đọc file {file}: {e}")
 
-    # Tạo bảng so sánh
+    if not all_models:
+        print("Chưa tìm thấy dữ liệu metrics trong folder common!")
+        return
+
+    # Trích xuất dữ liệu ra bảng
     rows = []
-    for m in all_metrics:
+    for m in all_models:
+        ws = extract_metric_value(m, ["workstream", "ws", "Workstream"])
+        model_name = extract_metric_value(m, ["model_name", "model", "Model"])
+        mae = extract_metric_value(m, ["MAE", "mae"])
+        rmse = extract_metric_value(m, ["RMSE", "rmse"])
+        mse = extract_metric_value(m, ["MSE", "mse"])
+        mape = extract_metric_value(m, ["MAPE_percent", "MAPE", "mape", "mape_percent"])
+
         rows.append({
-            "Workstream": m.get("workstream", "N/A"),
-            "Model": m.get("model_name", "N/A"),
-            "MAE": m.get("MAE", "N/A"),
-            "RMSE": m.get("RMSE", "N/A"),
-            "MSE": m.get("MSE", "N/A"),
-            "MAPE (%)": m.get("MAPE_percent", "N/A")
+            "Workstream": ws,
+            "Model Name": model_name,
+            "MAE": mae,
+            "RMSE": rmse,
+            "MSE": mse,
+            "MAPE (%)": mape
         })
 
     df_compare = pd.DataFrame(rows)
-    print("\n--- BẢNG SO SÁNH KẾT QUẢ CÁC MÔ HÌNH ---")
+    print("\n" + "="*70)
     print(df_compare.to_string(index=False))
-    
-    # Export file CSV so sánh
-    csv_out = os.path.join(BASE_DIR, "baseline_comparison.csv")
-    df_compare.to_csv(csv_out, index=False)
-    print(f"\n[Output] Đã lưu bảng so sánh tại: baseline_comparison.csv")
+    print("="*70)
+
+    # Xuất file CSV
+    out_csv = os.path.join(BASE_DIR, "baseline_comparison.csv")
+    df_compare.to_csv(out_csv, index=False)
+    print(f"\n[Output] Đã xuất thành công bảng so sánh tại: {out_csv}")
 
 if __name__ == "__main__":
     main()
