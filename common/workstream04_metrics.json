@@ -1,0 +1,18 @@
+[
+    {
+        "workstream": "workstream04",
+        "model_name": "GroupMean",
+        "MAE": 0.9841,
+        "RMSE": 1.411,
+        "MSE": 1.9908,
+        "MAPE_percent": 14.87
+    },
+    {
+        "workstream": "workstream04",
+        "model_name": "LinearRegression",
+        "MAE": 1.2139,
+        "RMSE": 1.5832,
+        "MSE": 2.5065,
+        "MAPE_percent": 21.08
+    }
+]

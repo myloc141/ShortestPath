@@ -1,0 +1,8 @@
+{
+    "workstream": "workstream05",
+    "model_name": "Neural_Network_MLP",
+    "MAE": 0.7038,
+    "RMSE": 0.9777,
+    "MSE": 0.9559,
+    "MAPE_percent": 10.83
+}

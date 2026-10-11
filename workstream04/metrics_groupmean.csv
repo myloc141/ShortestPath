@@ -1,0 +1,2 @@
+model,MAE,RMSE,MSE,MAPE_percent
+GroupMean,0.9841,1.411,1.9908,14.87
