@@ -1,0 +1,44 @@
+================================================================================
+WS4 - SO SÁNH BASELINE VÀ CHỌN BASELINE CHÍNH CHO ROUTING
+================================================================================
+
+1. Bối cảnh
+-----------
+Workstream 4 xây dựng hai mô hình baseline để dự báo travel_time trên mạng
+Seervada Park:
+  - Baseline 1: Group Mean (nhóm theo edge_id × time_slot, fallback 3 mức).
+  - Baseline 2: Linear Regression (OLS trên 22 đặc trưng sau drop-first).
+
+Cả hai dùng cùng 1 tập train-test từ workstream 3.
+
+--------------------------------------------------------------------------------
+2. So sánh metrics trên tập test (360 dòng)
+--------------------------------------------------------------------------------
+
+  Model              |     MAE |    RMSE |     MSE |  MAPE (%)
+  -------------------|---------|---------|---------|----------
+  Group Mean         |  0.9841 |  1.4110 |  1.9908 |    14.87
+  Linear Regression  |  1.2139 |  1.5832 |  2.5065 |    21.08
+
+  - MAE  : Group Mean (0.9841) < Linear Regression (1.2139).
+  - RMSE : Group Mean (1.4110) < Linear Regression (1.5832).
+  - MSE  : Group Mean (1.9908) < Linear Regression (2.5065).
+  - MAPE : Group Mean (14.87)  < Linear Regression (21.08).
+
+  Kết luận: Group Mean cho 4 sai số đều thấp hơn Lineare Regression.
+
+--------------------------------------------------------------------------------
+4. Quyết định chọn baseline
+--------------------------------------------------------------------------------
+
+  Baseline chính cho routing           : GROUP MEAN
+  Baseline phụ (đối chiếu nếu cần)     : LINEAR REGRESSION
+
+--------------------------------------------------------------------------------
+5. File tham chiếu
+--------------------------------------------------------------------------------
+
+  Dữ liệu metrics:
+    - workstream04/metrics_groupmean.csv
+    - workstream04/metrics_linearreg.csv
+    - common/workstream04_metrics.json
