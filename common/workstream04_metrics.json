@@ -2,10 +2,48 @@
     {
         "workstream": "workstream04",
         "model_name": "GroupMean",
-        "MAE": 0.9841,
-        "RMSE": 1.411,
-        "MSE": 1.9908,
-        "MAPE_percent": 14.87
+        "MAE": 0.6754,
+        "RMSE": 0.9576,
+        "MSE": 0.917,
+        "MAPE_percent": 10.43,
+        "n_obs": 360,
+        "by_time_slot": {
+            "1": {
+                "MAE": 0.4326,
+                "RMSE": 0.5917,
+                "MSE": 0.3501,
+                "MAPE_percent": 9.82,
+                "n_obs": 72
+            },
+            "2": {
+                "MAE": 0.9722,
+                "RMSE": 1.3172,
+                "MSE": 1.7349,
+                "MAPE_percent": 12.34,
+                "n_obs": 72
+            },
+            "3": {
+                "MAE": 0.6197,
+                "RMSE": 0.8271,
+                "MSE": 0.6841,
+                "MAPE_percent": 10.98,
+                "n_obs": 72
+            },
+            "4": {
+                "MAE": 0.777,
+                "RMSE": 1.0807,
+                "MSE": 1.168,
+                "MAPE_percent": 9.68,
+                "n_obs": 72
+            },
+            "5": {
+                "MAE": 0.5756,
+                "RMSE": 0.8049,
+                "MSE": 0.6479,
+                "MAPE_percent": 9.34,
+                "n_obs": 72
+            }
+        }
     },
     {
         "workstream": "workstream04",
@@ -13,6 +51,44 @@
         "MAE": 1.2139,
         "RMSE": 1.5832,
         "MSE": 2.5065,
-        "MAPE_percent": 21.08
+        "MAPE_percent": 21.08,
+        "n_obs": 360,
+        "by_time_slot": {
+            "1": {
+                "MAE": 0.923,
+                "RMSE": 1.1124,
+                "MSE": 1.2374,
+                "MAPE_percent": 26.61,
+                "n_obs": 72
+            },
+            "2": {
+                "MAE": 1.4014,
+                "RMSE": 1.7675,
+                "MSE": 3.1241,
+                "MAPE_percent": 20.5,
+                "n_obs": 72
+            },
+            "3": {
+                "MAE": 1.0167,
+                "RMSE": 1.2762,
+                "MSE": 1.6286,
+                "MAPE_percent": 17.03,
+                "n_obs": 72
+            },
+            "4": {
+                "MAE": 1.4035,
+                "RMSE": 1.8632,
+                "MSE": 3.4717,
+                "MAPE_percent": 21.84,
+                "n_obs": 72
+            },
+            "5": {
+                "MAE": 1.3249,
+                "RMSE": 1.7523,
+                "MSE": 3.0707,
+                "MAPE_percent": 19.41,
+                "n_obs": 72
+            }
+        }
     }
 ]

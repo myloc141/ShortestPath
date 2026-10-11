@@ -6,39 +6,77 @@ WS4 - SO SÁNH BASELINE VÀ CHỌN BASELINE CHÍNH CHO ROUTING
 -----------
 Workstream 4 xây dựng hai mô hình baseline để dự báo travel_time trên mạng
 Seervada Park:
-  - Baseline 1: Group Mean (nhóm theo edge_id × time_slot, fallback 3 mức).
+  - Baseline 1: Group Mean theo bộ ba (edge_id, time_slot, day_of_week),
+    fallback 4 mức.
   - Baseline 2: Linear Regression (OLS trên 22 đặc trưng sau drop-first).
 
-Cả hai dùng cùng 1 tập train-test từ workstream 3.
+Cả hai dùng chung tập train/test từ Workstream 3.
 
 --------------------------------------------------------------------------------
-2. So sánh metrics trên tập test (360 dòng)
+2. So sánh metrics tổng thể trên tập test (360 dòng)
 --------------------------------------------------------------------------------
 
   Model              |     MAE |    RMSE |     MSE |  MAPE (%)
   -------------------|---------|---------|---------|----------
-  Group Mean         |  0.9841 |  1.4110 |  1.9908 |    14.87
+  Group Mean         |  0.6754 |  0.9576 |  0.9170 |    10.43   
   Linear Regression  |  1.2139 |  1.5832 |  2.5065 |    21.08
 
-  - MAE  : Group Mean (0.9841) < Linear Regression (1.2139).
-  - RMSE : Group Mean (1.4110) < Linear Regression (1.5832).
-  - MSE  : Group Mean (1.9908) < Linear Regression (2.5065).
-  - MAPE : Group Mean (14.87)  < Linear Regression (21.08).
+  - MAE  : Group Mean (0.6754) < Linear Regression (1.2139)
+  - RMSE : Group Mean (0.9576) < Linear Regression (1.5832)
+  - MSE  : Group Mean (0.9170) < Linear Regression (2.5065)
+  - MAPE : Group Mean (10.43)  < Linear Regression (21.08)
 
-  Kết luận: Group Mean cho 4 sai số đều thấp hơn Lineare Regression.
-
---------------------------------------------------------------------------------
-4. Quyết định chọn baseline
---------------------------------------------------------------------------------
-
-  Baseline chính cho routing           : GROUP MEAN
-  Baseline phụ (đối chiếu nếu cần)     : LINEAR REGRESSION
+Kết luận: Group Mean cho 4 sai số đều thấp hơn Lineare Regression.
 
 --------------------------------------------------------------------------------
-5. File tham chiếu
+3. So sánh theo khung giờ
 --------------------------------------------------------------------------------
 
-  Dữ liệu metrics:
+  Bảng 3a. Group Mean — metric theo khung giờ
+
+    Slot | Đặc điểm        |     MAE |    RMSE |     MSE |  MAPE (%)  | Nhận xét
+    -----|-----------------|---------|---------|---------|------------|----------
+      1  | 06:00 - 08:00   |  0.4326 |  0.5917 |  0.3501 |    9.82    | Tốt nhất về MAE, RMSE, MSE
+      2  | 08:00 - 10:00   |  0.9722 |  1.3172 |  1.7349 |   12.34    | Kém nhất ở cả 4 chỉ số
+      3  | 11:30 - 13:30   |  0.6197 |  0.8271 |  0.6841 |   10.98    | Khá tốt
+      4  | 16:30 - 18:30   |  0.7770 |  1.0807 |  1.1680 |    9.68    | Sai số tương đối thấp theo MAPE
+      5  | 19:30 - 21:30   |  0.5756 |  0.8049 |  0.6479 |    9.34    | MAPE thấp nhất
+
+  Bảng 3b. Linear Regression — metric theo khung giờ
+
+    Slot | Đặc điểm        |     MAE |    RMSE |     MSE |  MAPE (%)  | Nhận xét
+    -----|-----------------|---------|---------|---------|------------|----------
+      1  | 06:00 - 08:00   |  0.9230 |  1.1124 |  1.2374 |   26.61    | Sai số tuyệt đối thấp nhất, MAPE cao nhất
+      2  | 08:00 - 10:00   |  1.4014 |  1.7675 |  3.1241 |   20.50    | MAE cao, sai số lớn
+      3  | 11:30 - 13:30   |  1.0167 |  1.2762 |  1.6286 |   17.03    | MAPE thấp nhất
+      4  | 16:30 - 18:30   |  1.4035 |  1.8632 |  3.4717 |   21.84    | Kém nhất về MAE, RMSE, MSE
+      5  | 19:30 - 21:30   |  1.3249 |  1.7523 |  3.0707 |   19.41    | MAPE tương đối thấp
+
+  Nhận xét chung:
+
+  (a) Group Mean tốt hơn Linear Regression ở mọi khung giờ. Kết luận tổng thể
+      không chỉ đúng trên trung bình mà còn đúng ở cấp chi tiết.
+
+  (b) Slot 2 và slot 4 có sai số tuyệt đối cao ở cả hai mô hình, có thể liên quan
+      đến đặc điểm biến động của lưu lượng giao thông giờ cao điểm.
+
+  (c) Linear Regression có MAPE cao nhất tại slot 1 (26.61%), trong khi Group 
+      Mean đạt 9.82%. Điều này gợi ý Linear Regression có thể chưa nắm bắt tốt
+      đặc trưng lưu lượng theo cạnh đường và khung giờ.
+
+--------------------------------------------------------------------------------
+5. Quyết định chọn baseline
+--------------------------------------------------------------------------------
+
+  Baseline chính cho routing            : GROUP MEAN
+  Baseline phụ (đối chiếu nếu cần)      : LINEAR REGRESSION
+
+--------------------------------------------------------------------------------
+8. File tham chiếu
+--------------------------------------------------------------------------------
+
+  Metrics:
     - workstream04/metrics_groupmean.csv
     - workstream04/metrics_linearreg.csv
     - common/workstream04_metrics.json
+    

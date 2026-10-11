@@ -15,78 +15,80 @@ Workstream 6. Cả hai dùng chung tập train/test đã chuẩn hóa từ Works
 
 1.1. Ý tưởng
 ------------
-Travel time của một cạnh phụ thuộc chủ yếu vào hai yếu tố:
+Travel time của một cạnh phụ thuộc vào ba yếu tố:
   - Cạnh nào (edge_id), vì mỗi cạnh có độ dài và đặc tính địa hình khác nhau.
   - Khung giờ nào (time_slot), vì giao thông thay đổi theo giờ cao điểm.
+  - Thứ trong tuần (day_of_week), vì lưu lượng giao thông khác biệt giữa
+    ngày thường và cuối tuần.
 
-Do đó, baseline đơn giản nhất là: với mỗi cặp (edge_id, time_slot), lấy trung
-bình cộng của travel_time trên toàn bộ các ngày trong tập train.
+Do đó, baseline Group Mean được xây dựng bằng cách: với mỗi bộ ba
+(edge_id, time_slot, day_of_week), lấy trung bình cộng của travel_time
+trên toàn bộ các ngày có cùng thứ trong tập train.
 
 1.2. Công thức
 --------------
-Với mỗi cặp (e, s), trong đó e là edge_id và s là time_slot:
+Với mỗi bộ ba (e, s, d), trong đó e là edge_id, s là time_slot, d là
+day_of_week:
 
-                       1        N(e,s)
-    y_hat(e, s)  =  --------- *  SUM   t(e, s, i)
-                     N(e,s)      i=1
+                            1          N(e,s,d)
+    y_hat(e, s, d)  =  ------------ *    SUM     t(e, s, d, i)
+                        N(e,s,d)          i=1
 
 Trong đó:
-  - y_hat(e, s): giá trị dự báo cho cạnh e tại khung giờ s.
-  - N(e, s)    : số quan sát của cặp (e, s) trong tập train.
-  - t(e, s, i) : travel_time thực tế của quan sát thứ i thuộc cặp (e, s).
+  - y_hat(e, s, d): giá trị dự báo cho cạnh e tại khung giờ s vào thứ d.
+  - N(e, s, d)    : số quan sát của bộ ba (e, s, d) trong tập train.
+  - t(e, s, d, i) : travel_time thực tế của quan sát thứ i thuộc bộ ba
+                    (e, s, d).
 
-1.3. Quy tắc dự báo rõ ràng (fallback 3 mức)
+1.3. Quy tắc dự báo rõ ràng (fallback 4 mức)
 --------------------------------------------
-Vấn đề đặt ra: nếu một cặp (e, s) trong tập test không xuất hiện trong tập
-train, ta không có giá trị trung bình để dùng. Cần quy tắc lùi về phương án
-dự phòng, gọi là fallback rule.
+Vấn đề đặt ra: nếu một bộ ba (e, s, d) trong tập test không xuất hiện
+trong tập train, ta không có giá trị trung bình để dùng. Cần quy tắc lùi
+về phương án dự phòng, gọi là fallback rule.
 
 Thứ tự ưu tiên từ cụ thể nhất đến tổng quát nhất:
 
   Mức 1 (level1) - ưu tiên cao nhất
-    Nếu cặp (e, s) có trong train:
+    Nếu bộ ba (e, s, d) có trong train:
+        y_hat = trung bình travel_time của bộ ba (e, s, d).
+
+  Mức 2 (level2) - bỏ day_of_week
+    Nếu bộ ba (e, s, d) không có, nhưng cặp (e, s) có trong train:
         y_hat = trung bình travel_time của cặp (e, s).
 
-  Mức 2 (level2) - lùi một bước
-    Nếu cặp (e, s) không có, nhưng edge e có trong train:
-        y_hat = trung bình travel_time của edge e (bỏ qua khung giờ).
+  Mức 3 (level3) - bỏ tiếp time_slot
+    Nếu cặp (e, s) cũng không có, nhưng edge e có trong train:
+        y_hat = trung bình travel_time của edge e.
 
-  Mức 3 (level3) - phương án cuối
-    Nếu cả cặp (e, s) và edge e đều không có trong train:
+  Mức 4 (level4) - phương án cuối
+    Nếu cả (e, s, d), (e, s), và edge e đều không có trong train:
         y_hat = trung bình travel_time toàn cục của train.
 
 1.4. Lưu ý kỹ thuật về dữ liệu hiện tại
 ----------------------------------------
-Với mạng Seervada (12 cạnh × 5 khung giờ = 60 cặp) và tập train 24 ngày
-(1440 quan sát), mỗi cặp (e, s) có trung bình 24 quan sát. Tập test 6 ngày
-chứa đầy đủ 60 cặp đã có trong train.
+Với mạng Seervada (12 cạnh × 5 khung giờ × 7 thứ = 420 bộ ba) và tập
+train 24 ngày (1440 quan sát), mỗi bộ ba (e, s, d) chỉ có trung bình
+khoảng 3.4 quan sát.
 
-Hệ quả: toàn bộ 360 dòng test đều rơi vào level1, không có dòng nào cần
-fallback. Fallback rule vẫn được cài đặt trong code để đảm bảo tính tổng quát
-(defensive programming): nếu sau này áp dụng cho tập dữ liệu khác có cặp
-(e, s) chưa từng gặp, code không bị crash và vẫn cho ra dự báo hợp lệ.
+Tập test có 6 ngày (Thu, Fri, Sat, Sun, Mon, Tue) — tức 6 thứ khác nhau
+trong tuần. Tất cả 6 thứ này đều xuất hiện trong tập train (train phủ
+đầy đủ 7 thứ). Hệ quả: toàn bộ 360 dòng test đều rơi vào level1, không
+có dòng nào cần fallback. Fallback rule vẫn được cài đặt để đảm bảo tính
+tổng quát (defensive programming): nếu sau này áp dụng cho tập dữ liệu
+khác có ngày mới hoặc cạnh mới, code không bị crash và vẫn cho ra dự báo
+hợp lệ.
 
 1.5. Ưu điểm và nhược điểm
 --------------------------
 Ưu điểm:
   - Cực kỳ đơn giản, không cần huấn luyện.
   - Không giả định phân phối dữ liệu.
-  - Hoạt động tốt khi pattern theo giờ rõ rệt.
+  - Nắm được khác biệt giữa ngày thường và cuối tuần — pattern giao thông
+    quan trọng.
 
 Nhược điểm:
-  - Không dùng được các đặc trưng khác như distance, is_weekend.
-  - Lấy trung bình qua tất cả các ngày, bỏ qua khác biệt theo thứ trong tuần.
-  - Không ngoại suy được cho cặp (e, s) chưa gặp (phải dùng fallback).
-
-1.6. Ghi chú về day_of_week
----------------------------
-Cột day_of_week trong file dữ liệu không được đưa vào khóa nhóm. Cột này chỉ
-được giải mã ở bước xuất output để ghi vào file kết quả phục vụ Workstream 6.
-
-Lý do không đưa day_of_week vào khóa nhóm:
-  - Nếu nhóm theo (edge, slot, day_of_week), ta sẽ có 12 × 5 × 7 = 420 nhóm.
-  - Tập train chỉ có 1440 dòng, tức mỗi nhóm chỉ còn khoảng 3.4 quan sát.
-  - Với 3-4 quan sát mỗi nhóm, giá trị trung bình rất nhiễu và dễ overfit.
+  - Không dùng được các đặc trưng số như distance.
+  - Không ngoại suy được cho bộ ba (e, s, d) chưa gặp (phải dùng fallback).
 
 --------------------------------------------------------------------------------
 2. Baseline 2 - Linear Regression 

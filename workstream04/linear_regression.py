@@ -11,7 +11,7 @@ WS3_DIR    = ROOT_DIR / "workstream03"
 COMMON_DIR = ROOT_DIR / "common"
 
 sys.path.append(str(COMMON_DIR))
-from metrics import evaluate_all
+from metrics import evaluate_all  
 
 # ---------- 1. LOAD ----------
 X_train = pd.read_csv(WS3_DIR / "X_train_preprocessed.csv")
@@ -30,8 +30,6 @@ assert X_test.shape[0]  == len(y_test),  "Số dòng test không khớp!"
 assert list(X_train.columns) == list(X_test.columns), "Cột train/test không khớp!"
 
 # ---------- 2. DROP-FIRST (khử đa cộng tuyến hoàn hảo) ----------
-# Mỗi nhóm one-hot có tổng = 1 với mọi dòng -> cộng tuyến với intercept.
-# Bỏ 1 cột mỗi nhóm -> nhóm đó trở thành nhóm tham chiếu.
 DROP_COLS = [
     "edge_id_A-B",       # tham chiếu cho 12 cạnh
     "time_slot_1",       # tham chiếu cho 5 khung giờ
@@ -62,7 +60,6 @@ print("\nTop 10 hệ số |coef| lớn nhất:")
 print(coef_df.head(10).to_string(index=False))
 
 # --- Kiểm tra đa cộng tuyến ---
-import numpy as np
 rank = np.linalg.matrix_rank(X_train_lr.values)
 n_features = X_train_lr.shape[1]
 print(f"\nRank của X_train_lr   : {rank}")
@@ -72,13 +69,7 @@ print(f"Full rank?            : {rank == n_features}  (True = hết đa cộng t
 # ---------- 4. PREDICT ----------
 y_pred = lr.predict(X_test_lr)
 
-# ---------- 5. ĐÁNH GIÁ ----------
-metrics = evaluate_all(y_test.values, y_pred)
-print("\n--- Metrics Linear Regression ---")
-for k, v in metrics.items():
-    print(f"  {k:<14}: {v}")
-
-# ---------- 6. DECODE KEY (chỉ để xuất output) ----------
+# ---------- 5. DECODE KEY (chỉ để xuất output + tách per-slot) ----------
 edge_cols = [c for c in X_test.columns if c.startswith("edge_id_")]
 slot_cols = [c for c in X_test.columns if c.startswith("time_slot_")]
 dow_cols  = [c for c in X_test.columns if c.startswith("day_of_week_")]
@@ -86,6 +77,32 @@ dow_cols  = [c for c in X_test.columns if c.startswith("day_of_week_")]
 edge_t = X_test[edge_cols].idxmax(axis=1).str.replace("edge_id_", "", regex=False).values
 slot_t = X_test[slot_cols].idxmax(axis=1).str.replace("time_slot_", "", regex=False).astype(int).values
 dow_t  = X_test[dow_cols].idxmax(axis=1).str.replace("day_of_week_", "", regex=False).values
+
+# ---------- 6. ĐÁNH GIÁ: TỔNG THỂ + THEO KHUNG GIỜ ----------
+rows = []
+
+# 6a. Overall
+rows.append({
+    "time_slot": "all",
+    "model": "LinearRegression",
+    **evaluate_all(y_test.values, y_pred),
+    "n_obs": len(y_test),
+})
+
+# 6b. Per time slot
+for slot in sorted(pd.unique(slot_t)):
+    mask = (slot_t == slot)
+    rows.append({
+        "time_slot": slot,
+        "model": "LinearRegression",
+        **evaluate_all(y_test.values[mask], y_pred[mask]),
+        "n_obs": int(mask.sum()),
+    })
+
+metrics_df = pd.DataFrame(rows)
+
+print("\n--- Metrics Linear Regression (overall + per time_slot) ---")
+print(metrics_df.to_string(index=False))
 
 # ---------- 7. XUẤT OUTPUT ----------
 pd.DataFrame({"y_pred": y_pred}).to_csv(
@@ -96,10 +113,9 @@ pd.DataFrame({
     "y_true": y_test.values, "y_pred": y_pred,
 }).to_csv(THIS_DIR / "pred_linearreg_withkey.csv", index=False)
 
-pd.DataFrame([{"model": "LinearRegression", **metrics}]).to_csv(
-    THIS_DIR / "metrics_linearreg.csv", index=False)
+metrics_df.to_csv(THIS_DIR / "metrics_linearreg.csv", index=False)
 
-# Thêm 1 cột "reference" đánh dấu nhóm tham chiếu (tiện cho báo cáo)
+# Thêm 1 cột "reference" đánh dấu nhóm tham chiếu
 coef_df["note"] = coef_df["feature"].apply(
     lambda x: "reference" if x in DROP_COLS else "coef_vs_reference"
 )
@@ -108,5 +124,5 @@ coef_df.to_csv(THIS_DIR / "coef_linearreg.csv", index=False)
 print(f"\nĐã ghi 4 file trong: {THIS_DIR}")
 print("  - pred_linearreg_raw.csv")
 print("  - pred_linearreg_withkey.csv")
-print("  - metrics_linearreg.csv")
+print("  - metrics_linearreg.csv  (6 dòng: 1 overall + 5 per-slot)")
 print("  - coef_linearreg.csv")
