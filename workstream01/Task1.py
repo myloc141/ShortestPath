@@ -6,7 +6,7 @@ from collections import defaultdict
 # TASK 1.1: ĐỌC VÀ MÃ HÓA MẠNG SEERVADA
 # ============================================================
 
-CSV_PATH = "workstream01/seervada_network.csv"
+CSV_PATH = "data/seervada_network.csv"
 
 # Các cấu trúc dữ liệu
 adj = defaultdict(dict)   # Danh sách kề

@@ -1,0 +1,12 @@
+﻿method,1,2,3,4,5
+Fixed_distance,O-A-B-D-T,O-A-B-D-T,O-A-B-D-T,O-A-B-D-T,O-A-B-D-T
+Fixed_trainmean,O-B-E-T,O-B-E-T,O-B-E-T,O-B-E-T,O-B-E-T
+Oracle,O-A-D-T,O-B-E-T,O-A-D-T,O-C-E-T,O-C-E-T
+Pred_GroupMean,O-B-E-T,O-B-E-T,O-A-D-T,O-B-E-T,O-B-E-D-T
+Pred_LinearRegression,O-C-B-E-D-T,O-B-E-T,O-B-E-T,O-B-E-T,O-B-E-T
+Pred_NeuralNet,O-C-E-D-T,O-B-E-T,O-A-D-T,O-B-E-T,O-C-E-D-T
+RCSP_T18_a,O-A-D-T,O-A-D-T,O-A-D-T,O-A-D-T,O-A-D-T
+RCSP_T18_b,O-B-E-D-T,O-B-E-D-T,O-B-E-D-T,O-B-E-D-T,O-B-E-D-T
+RCSP_T18_c,O-C-E-D-T,O-C-E-D-T,O-C-E-D-T,O-C-E-D-T,O-C-E-D-T
+RCSP_T19,O-A-B-E-D-T,O-A-B-E-D-T,O-A-B-E-D-T,O-A-B-E-D-T,O-A-B-E-D-T
+RCSP_T20plus,O-A-B-D-T,O-A-B-D-T,O-A-B-D-T,O-A-B-D-T,O-A-B-D-T

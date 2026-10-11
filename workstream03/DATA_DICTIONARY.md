@@ -75,3 +75,20 @@
 | **Time Slot** | One-Hot Encoding | `time_slot_1`, `time_slot_2`, `time_slot_3`, `time_slot_4`, `time_slot_5` | 5 |
 | **Day of Week** | One-Hot Encoding | `day_of_week_Fri`, `day_of_week_Mon`, `day_of_week_Sat`, `day_of_week_Sun`, `day_of_week_Thu`, `day_of_week_Tue`, `day_of_week_Wed` | 7 |
 | **TỔNG CỘNG** | | | **26 đặc trưng (Input Features)** |
+
+### 6. The traffic data files for the Bay Area (PEMS-BAY)
+https://pmc.ncbi.nlm.nih.gov/articles/PMC9861593/
+https://github.com/liyaguang/DCRNN/tree/master
+https://drive.google.com/drive/folders/10FOTa6HXPqX8Pf5WRoRwcFnW9BrNZEIX
+@inproceedings{li2018dcrnn_traffic,
+  title={Diffusion Convolutional Recurrent Neural Network: Data-Driven Traffic Forecasting},
+  author={Li, Yaguang and Yu, Rose and Shahabi, Cyrus and Liu, Yan},
+  booktitle={International Conference on Learning Representations (ICLR '18)},
+  year={2018}
+}
+
+`pems-bay.h5`: Chứa dữ liệu đầu vào theo thời gian (tốc độ xe tại các trạm qua từng khoảng thời gian 5 phút). Đây là nhãn/giá trị cần dự báo (ground truth).
+
+`adj_mx_bay.pkl`: Chứa thông tin về ma trận kề (adjacency matrix) và danh sách các ID cảm biến (sensor IDs). File này dùng để xây dựng đồ thị mạng lưới giao thông (khoảng cách hoặc kết nối giữa các trạm đo).
+
+`graph_sensor_locations_bay.csv`: Chứa tọa độ địa lý (vĩ độ, kinh độ) của các trạm cảm biến tương ứng với các ID trong mạng lưới giao thông, giúp ích cho việc trực quan hóa bản đồ hoặc tính toán khoảng cách không gian.

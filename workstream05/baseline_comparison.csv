@@ -1,2 +1,4 @@
-Workstream,Model,MAE,RMSE,MSE,MAPE (%)
+Workstream,Model Name,MAE,RMSE,MSE,MAPE (%)
+workstream04,GroupMean,0.9841,1.411,1.9908,14.87
+workstream04,LinearRegression,1.2139,1.5832,2.5065,21.08
 workstream05,Neural_Network_MLP,0.7038,0.9777,0.9559,10.83
