@@ -1,0 +1,27 @@
+dataset: seervada
+description: Seervada Park network edges
+source:
+  path: data/processed_seervada/seervada_network.csv
+  format: csv
+  encoding: utf-8
+  delimiter: ","
+  has_header: true
+columns:
+  node_u:
+    type: string
+    maps_to: u
+    required: true
+  node_v:
+    type: string
+    maps_to: v
+    required: true
+  distance:
+    type: float
+    unit: km
+    required: true
+  directed:
+    type: boolean
+    required: true
+derived:
+  edge_id: Generated in input-row order as edge_001, edge_002, and so on
+  nodes: Unique sorted values collected from node_u and node_v
