@@ -78,18 +78,6 @@ tổng quát (defensive programming): nếu sau này áp dụng cho tập dữ l
 khác có ngày mới hoặc cạnh mới, code không bị crash và vẫn cho ra dự báo
 hợp lệ.
 
-1.5. Ưu điểm và nhược điểm
---------------------------
-Ưu điểm:
-  - Cực kỳ đơn giản, không cần huấn luyện.
-  - Không giả định phân phối dữ liệu.
-  - Nắm được khác biệt giữa ngày thường và cuối tuần — pattern giao thông
-    quan trọng.
-
-Nhược điểm:
-  - Không dùng được các đặc trưng số như distance.
-  - Không ngoại suy được cho bộ ba (e, s, d) chưa gặp (phải dùng fallback).
-
 --------------------------------------------------------------------------------
 2. Baseline 2 - Linear Regression 
 --------------------------------------------------------------------------------
@@ -156,22 +144,7 @@ cứu bảng). Mọi dòng test đều có đủ 22 đặc trưng để dự bá
 Diễn giải hệ số: mỗi hệ số beta_j biểu diễn mức chênh lệch của travel_time
 so với nhóm tham chiếu tương ứng, khi các đặc trưng khác giữ nguyên.
 
-2.4. Ưu điểm và nhược điểm
---------------------------
-Ưu điểm:
-  - Dùng được 22 đặc trưng (bao gồm distance và day_of_week).
-  - Hệ số hồi quy diễn giải được do đã loại bỏ đa cộng tuyến hoàn hảo bằng
-    kỹ thuật drop-first.
-  - Nhanh, ổn định, ít overfit khi số features vừa phải (22 features / 1440 obs).
-  - Có thể xử lý được quan hệ giữa distance và travel_time mà Group Mean bỏ qua.
-
-Nhược điểm:
-  - Giả định quan hệ tuyến tính, có thể sai trong thực tế.
-  - Không nắm được tương tác phi tuyến giữa các đặc trưng.
-  - Với one-hot encoding của edge_id, mô hình học hệ số riêng cho từng cạnh,
-    tương tự Group Mean nhưng có thêm thành phần distance và day_of_week.
-
-2.5. Kỹ thuật drop-first và lý do sử dụng
+2.4. Kỹ thuật drop-first và lý do sử dụng
 -----------------------------------------
 One-hot encoding đầy đủ cho 3 biến phân loại (edge_id, time_slot, day_of_week)
 tạo ra đa cộng tuyến hoàn hảo với intercept, vì tổng các cột trong mỗi nhóm
