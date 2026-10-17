@@ -1,0 +1,34 @@
+dataset: pemsbay
+locations_path: data/raw_perm_bay/graph_sensor_locations_bay.csv
+adjacency_path: data/raw_perm_bay/adj_mx_bay.pkl
+traffic_parquet: data/processed/pemsbay/traffic_speed_long.parquet
+# Để trống để adapter chọn tự động; nếu khai báo phải có 20–30 sensor ID.
+sensor_ids: []
+# Tự chọn 25 sensor liên thông; seed_sensor null dùng sensor bậc cao nhất.
+n_sensors: 25
+seed_sensor: null
+# Giới hạn số simple paths khi chọn và kiểm chứng tuyến.
+max_paths: 10000
+# undirected hợp nhất cung nếu một trong hai hướng có cạnh; chọn directed để giữ cung gốc.
+direction_policy: undirected
+source: null
+target: null
+distance_unit: km
+time_unit: minutes
+speed_unit: mph
+timezone: America/Los_Angeles
+sample_interval_minutes: 5
+max_speed_imputation_gap: 3
+lag_steps: [1]
+train_fraction: 0.7
+valid_fraction: 0.15
+routing_windows:
+  - name: morning_peak
+    start_hour: 7
+    end_hour: 10
+  - name: evening_peak
+    start_hour: 16
+    end_hour: 19
+time_limits: []
+slots: []
+seed: 2026

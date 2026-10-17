@@ -1,7 +1,10 @@
-"""Inspect, validate, align, and export the PeMS-Bay source datasets.
+"""Inspect and export raw PeMS-BAY as a canonical long-form Parquet table.
 
-This module is intentionally side-effect free on import. Run ``main`` to
-process files. Pickle input is executable serialization and must be trusted.
+The traffic export columns are ``time_index`` (int64), ``timestamp`` (nullable
+ISO-8601 string), ``sensor_id`` (string), and ``speed`` (nullable float64).
+The adapter and dataset-neutral preprocessing stages consume this table next.
+This module is intentionally side-effect free on import. Pickle input is
+executable serialization and must be trusted.
 """
 
 from __future__ import annotations
@@ -29,9 +32,6 @@ import pyarrow.parquet as pq
 
 
 LOGGER = logging.getLogger("pems_bay_preprocessing")
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_INPUT_DIR = REPOSITORY_ROOT / "data" / "raw_perm_bay"
-DEFAULT_OUTPUT_DIR = REPOSITORY_ROOT / "data" / "processed_perm_bay"
 TRAFFIC_BASENAME = "pems-bay"
 ADJACENCY_BASENAME = "adj_mx_bay"
 LOCATIONS_BASENAME = "graph_sensor_locations_bay"
@@ -1077,8 +1077,8 @@ def _render_quality_markdown(report: Mapping[str, Any]) -> str:
 
 def run_pipeline(
     *,
-    input_dir: Path = DEFAULT_INPUT_DIR,
-    output_dir: Path = DEFAULT_OUTPUT_DIR,
+    input_dir: Path,
+    output_dir: Path,
 ) -> dict[str, Any]:
     """Run inspection, source validation, alignment, export, and read-back checks."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1301,8 +1301,8 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Inspect and preprocess trusted PeMS-BAY input files."
     )
-    parser.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--input-dir", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument(
         "--log-level",
         choices=("DEBUG", "INFO", "WARNING", "ERROR"),
@@ -1323,6 +1323,12 @@ def main() -> None:
         report["traffic"]["n_sensor_ids"],
         report["traffic"]["n_time_steps_or_rows"],
     )
+
+
+__all__ = [
+    "PipelineError",
+    "run_pipeline",
+]
 
 
 if __name__ == "__main__":

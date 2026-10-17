@@ -1,4 +1,4 @@
-"""Resource-limit sensitivity analysis without implicit file writes."""
+"""RCSP resource-limit sensitivity analysis without implicit file writes."""
 
 from __future__ import annotations
 

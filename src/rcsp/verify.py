@@ -1,4 +1,4 @@
-"""Independent checks for RCSP solver results."""
+"""Independent verification for resource-constrained shortest-path results."""
 
 from __future__ import annotations
 

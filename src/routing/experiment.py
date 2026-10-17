@@ -8,7 +8,8 @@ import math
 from typing import Mapping, Sequence
 
 from ..network.schema import Network
-from ..preprocess.seervada import TrafficObservation, edge_key
+from ..preprocess.observations import TrafficObservation, edge_key
+from ..shortest_path.dijkstra import dijkstra
 from ..shortest_path.simple_paths import iter_simple_paths
 
 
@@ -35,6 +36,8 @@ class RoutingResult:
     regret: float
     matches_oracle: bool
     n_ties: int
+    selection_warning: str | None = None
+    method_family: str = "reference"
 
 
 @dataclass(frozen=True)
@@ -68,7 +71,7 @@ def _network_edge_maps(
             arc_distances[(edge.v, edge.u)] = edge.distance
         else:
             raise ValueError(
-                "WS6 Seervada route experiment requires an undirected network"
+                "This route experiment requires an undirected network"
             )
     return edge_distances, arc_distances
 
@@ -102,6 +105,46 @@ def _best_route(
     return scored[0][2], best_cost, ties
 
 
+def shortest_route_with_weights(
+    network: Network,
+    weights: Mapping[str, float],
+    source: str,
+    target: str,
+) -> tuple[str, ...]:
+    """Return the Dijkstra route using weights keyed by network edge ID."""
+    return dijkstra(network, source, target, weights=weights).path
+
+
+def parse_route_path(value: str) -> tuple[str, ...]:
+    """Parse a hyphen-delimited node path such as ``O-A-B-T``.
+
+    Empty strings, empty nodes, and repeated nodes are rejected with a
+    ``ValueError`` so malformed RCSP rows cannot silently become routes.
+    """
+    if not isinstance(value, str):
+        raise ValueError("Route path must be a hyphen-delimited string")
+    parts = tuple(node.strip() for node in value.split("-"))
+    if len(parts) < 2 or any(not node for node in parts):
+        raise ValueError(
+            f"Invalid route path {value!r}: expected at least two non-empty nodes"
+        )
+    if len(set(parts)) != len(parts):
+        raise ValueError(
+            f"Invalid route path {value!r}: repeated nodes are not allowed"
+        )
+    return parts
+
+
+def _edge_id_weights(
+    network: Network,
+    pair_weights: Mapping[tuple[str, str], float],
+) -> dict[str, float]:
+    return {
+        edge.edge_id: pair_weights[edge_key(edge.u, edge.v)]
+        for edge in network.edges
+    }
+
+
 def run_routing_experiment(
     network: Network,
     train: Sequence[TrafficObservation],
@@ -111,13 +154,17 @@ def run_routing_experiment(
     source: str = "O",
     target: str = "T",
     route_references: Sequence[RouteReference] = (),
+    rcsp_routes: Sequence[RouteReference] = (),
     max_paths: int | None = 1_000_000,
 ) -> tuple[RoutingResult, ...]:
-    """Run fixed, predicted, Oracle, and optional reference routes.
+    """Run fixed, predicted, Oracle, RCSP, and optional reference routes.
 
     Prediction arrays must align row-for-row with ``test``. Test actual values
     are used only to score selected routes, except for the explicitly labeled
-    Oracle lower-bound route.
+    Oracle lower-bound route. Fixed and predicted routes are selected by
+    Dijkstra; ``selection_warning`` records any difference from brute-force
+    selection under the same weights. RCSP routes are included as references
+    and scored against actual test travel times.
     """
     if not train or not test:
         raise ValueError("Training and test traffic observations must be non-empty")
@@ -158,10 +205,26 @@ def run_routing_experiment(
     )
     if not paths:
         raise ValueError(f"No simple path exists from {source!r} to {target!r}")
-    for reference in route_references:
-        _route_cost(reference.path, edge_distances)
-        if reference.path[0] != source or reference.path[-1] != target:
+    all_references = (*route_references, *rcsp_routes)
+    reference_names: set[str] = set()
+    for reference in all_references:
+        if not reference.name.strip():
+            raise ValueError("Reference route name must not be empty")
+        if reference.name in reference_names:
+            raise ValueError(f"Duplicate reference route name {reference.name!r}")
+        reference_names.add(reference.name)
+        if (
+            len(reference.path) < 2
+            or reference.path[0] != source
+            or reference.path[-1] != target
+        ):
             raise ValueError(f"Reference route {reference.name!r} has wrong endpoints")
+        try:
+            _route_cost(reference.path, edge_distances)
+        except ValueError as error:
+            raise ValueError(
+                f"Reference route {reference.name!r} is invalid: {error}"
+            ) from error
 
     groups: dict[tuple[int, int], list[tuple[int, TrafficObservation]]] = {}
     seen: set[tuple[int, int, str]] = set()
@@ -219,6 +282,7 @@ def run_routing_experiment(
             objective: float | None,
             predicted_time: float | None,
             n_ties: int,
+            selection_warning: str | None = None,
         ) -> None:
             actual_time = _route_cost(route, actual)
             distance = _route_cost(route, edge_distances)
@@ -229,6 +293,7 @@ def run_routing_experiment(
                     day=day,
                     day_of_week=day_of_week,
                     method=method,
+                    method_family=_method_family(method),
                     route=route,
                     distance_km=distance,
                     objective=objective,
@@ -241,17 +306,56 @@ def run_routing_experiment(
                         actual_time, oracle_time, rel_tol=0.0, abs_tol=1e-9
                     ),
                     n_ties=n_ties,
+                    selection_warning=selection_warning,
                 )
             )
 
         for method, weights, has_prediction in weight_sets:
-            route, objective, n_ties = _best_route(paths, weights)
+            brute_route, brute_objective, n_ties = _best_route(paths, weights)
+            dijkstra_route = shortest_route_with_weights(
+                network,
+                _edge_id_weights(network, weights),
+                source,
+                target,
+            )
+            selection_warning = None
+            if method == "Oracle":
+                route = brute_route
+                objective = brute_objective
+            else:
+                route = dijkstra_route
+                objective = round(_route_cost(route, weights), 9)
+            if dijkstra_route != brute_route:
+                selection_warning = (
+                    f"Dijkstra route {dijkstra_route!r} differs from "
+                    f"brute-force route {brute_route!r} for {method} weights"
+                )
             prediction = objective if has_prediction else None
-            append_result(method, route, objective, prediction, n_ties)
-        for reference in route_references:
+            append_result(
+                method,
+                route,
+                objective,
+                prediction,
+                n_ties,
+                selection_warning,
+            )
+        for reference in all_references:
             append_result(reference.name, reference.path, None, None, 1)
 
     return tuple(results)
+
+
+def _method_family(method: str) -> str:
+    """Classify a route method for downstream result tables."""
+    if method in {"Fixed_distance", "Fixed_trainmean"}:
+        return "fixed"
+    if method.startswith("Pred_"):
+        return "predicted"
+    if method == "Oracle":
+        return "oracle"
+    if method.startswith("RCSP"):
+        return "rcsp"
+    return "reference"
 
 
 def summarize_routing_results(

@@ -1,63 +1,158 @@
-# `src` — mã nguồn và luồng dữ liệu
+# ShortestPath pipeline
 
-Thư mục này chứa các schema, hàm xử lý mạng, thuật toán tìm đường, mô hình dự
-đoán, đánh giá và tiện ích báo cáo. Phần lớn module là thư viện: chúng nhận dữ
-liệu hoặc đường dẫn qua tham số, trả kết quả trong bộ nhớ và không tự ghi file.
-Các script chạy workstream ở `scripts/` kết nối những API này với dữ liệu đầu
-vào và nơi lưu kết quả.
+Pipeline cho Seervada và PEMS-BAY. Các phép biến đổi dữ liệu và hợp đồng
+workstream nằm trong `src/`; script chỉ điều phối tham số, gọi API và lưu kết quả.
+Chạy từ thư mục gốc repository.
 
-Chạy các script từ thư mục gốc repository để các import `src.*` và đường dẫn
-mặc định tới `data/` hoặc `workstream03/` được phân giải đúng.
-
-## Sơ đồ luồng tổng quát
+## Sơ đồ phụ thuộc
 
 ```text
-CSV mạng / dữ liệu giao thông / feature và target
-                  │
-                  ├── network, preprocess ──> schema chuẩn hoá
-                  │                                 │
-                  │                    ┌────────────┴──────────┐
-                  │                    │                       │
-                  │              shortest_path              rscp
-                  │                    │                       │
-                  │                    └──> nghiệm / đường đi <┘
-                  │
-                  └──> models ──> dự đoán ──> evaluation / routing
-                                                    │
-                                       report (bảng, Markdown, biểu đồ)
+M0 common ──> M1 network ──┬──> M2 shortest_path ──> M3 rcsp
+                           ├──> M3 rcsp                │
+                           ├──> M4 preprocess/adapter  │
+                           └──> M8 routing <───────────┘
+                                  ▲    ▲
+                    ┌─────────────┘    └── I7: weighted shortest path
+                    │
+M4 ──> M5 baselines ─┼──> M7 evaluation ────────────┐
+  └──> M6 nn ───────┘                               │
+M5/M6 ── I5 ──> M7, M8                              │
+M2 ── I2 ───────────────────────────────────────────┤
+M3 ── I3 ───────────────────────────────────────────┼──> M9 report
+M8 ── I8 ───────────────────────────────────────────┘
 ```
 
-## Theo dõi Input → Processing → Output → Downstream
+## Thứ tự chạy
 
-| Module / file | Input | Processing | Output | Downstream |
-|---|---|---|---|---|
-| [`network/schema.py`](./network/schema.py), [`network/encoding.py`](./network/encoding.py), [`network/validation.py`](./network/validation.py) | Các `Network`/`NetworkEdge` được tạo trong code hoặc bởi loader; không tự đọc file. | Chuẩn hoá node/cạnh; đổi cạnh vô hướng thành hai cung trong adjacency list; kiểm tra ID, khoảng cách, đơn vị, kết nối và khả năng đi từ source đến target. | `Network`, `Adjacency`, `NetworkValidation` chứa adjacency hoặc lỗi và số lượng node/cạnh/cung. | [`shortest_path/`](./shortest_path/), [`rscp/`](./rscp/), [`routing/`](./routing/). |
-| [`network/seervada.py`](./network/seervada.py) | `csv_path` (mặc định `data/processed_seervada/seervada_network.csv`), với các cột `node_u`, `node_v`, `distance`, `directed`; các tham số `source="O"`, `target="T"`, `expected_edge_count=12`. | Đọc CSV, gán `edge_id` theo thứ tự dòng, dựng mạng Seervada và xác thực mạng/các đầu mút. | Trả `Network`; không ghi file. | Được gọi bởi [`scripts/run_workstream01.py`](../scripts/run_workstream01.py), [`scripts/run_workstream02.py`](../scripts/run_workstream02.py) và [`scripts/run_workstream06.py`](../scripts/run_workstream06.py). |
-| [`network/pems_bay.py`](./network/pems_bay.py) | `selected_sensor_ids` (20–30 ID), `locations_csv` (mặc định `data/raw_perm_bay/graph_sensor_locations_bay.csv`), `adjacency_pickle` (mặc định `data/raw_perm_bay/adj_mx_bay.pkl`) và `require_connected`. | Ghép ID cảm biến với vị trí và ma trận adjacency; mỗi phần tử adjacency khác 0 tạo một cạnh có hướng; tính khoảng cách Haversine từ toạ độ. Khoảng cách là ước lượng đường chim bay, không phải chiều dài đường thực tế. | Trả `Network` có cờ khoảng cách xấp xỉ; không ghi file. | Có thể dùng như đầu vào cho API mạng và thuật toán; hiện chưa có script workstream nào trong repository gọi loader này. **Chỉ nạp pickle từ nguồn đáng tin cậy** vì pickle có thể thực thi mã khi mở. |
-| [`shortest_path/dijkstra.py`](./shortest_path/dijkstra.py), [`shortest_path/simple_paths.py`](./shortest_path/simple_paths.py), [`shortest_path/verify.py`](./shortest_path/verify.py) | `Network`, `source`, `target`; hàm liệt kê đường đi nhận thêm `max_paths` (mặc định 1.000.000, `None` để bỏ giới hạn). | Dijkstra tìm đường có tổng trọng số nhỏ nhất; khi hòa chọn chuỗi node theo thứ tự từ điển. Bộ liệt kê duyệt các đường đi đơn giản và sắp theo khoảng cách rồi chuỗi node. Bộ xác minh đối chiếu Dijkstra với vét cạn. | `ShortestPathResult` (đường đi, khoảng cách, map khoảng cách và predecessor), `SimplePath` hoặc `ShortestPathVerification`; không tự ghi file. Có thể phát sinh `PathLimitExceeded` nếu vét cạn vượt giới hạn. | Được dùng trong script WS1, trong [`rscp/verify.py`](./rscp/verify.py) và [`routing/experiment.py`](./routing/experiment.py). |
-| [`rscp/schema.py`](./rscp/schema.py), [`rscp/data.py`](./rscp/data.py), [`rscp/validation.py`](./rscp/validation.py) | `load_rcsp_problem(csv_path, network=None, resource_unit="minutes")` đọc CSV mặc định `data/processed_seervada/seervada_rcsp_teaching.csv`, các cột `node_u`, `node_v`, `distance`, `time`, `directed`; có thể truyền mạng đã nạp để đối chiếu topology/khoảng cách. | Gắn mức tiêu thụ resource vào từng cạnh, kiểm tra tính hợp lệ và mở rộng cạnh vô hướng thành các `ResourceArc`. | Trả `RCSPProblem` hoặc `RCSPValidation`; không ghi file. | Đầu vào cho các solver, phân tích độ nhạy và xác minh trong package `rscp`; script WS2 cũng dùng loader này. |
-| [`rscp/solver.py`](./rscp/solver.py), [`rscp/sensitivity.py`](./rscp/sensitivity.py), [`rscp/verify.py`](./rscp/verify.py) | `RCSPProblem`; `resource_limit` (hoặc `None`), `source="O"`, `target="T"`; các API vét cạn nhận thêm `max_paths`, MILP nhận `solver_msg`. Phân tích độ nhạy nhận danh sách giới hạn. | Tối thiểu hoá tổng khoảng cách với ràng buộc tổng resource. Có solver vét cạn cho mạng nhỏ và MILP 0–1 flow dùng PuLP/CBC; phân tích độ nhạy so sánh tuyến theo các giới hạn; verification kiểm tra chi phí, ràng buộc và đối chiếu vét cạn. | `RCSPResult`, `BruteForceResult`, các dòng `SensitivityRow`, kết quả kiểm chứng/đối chiếu; không tự ghi file. `solve_rcsp_milp` cần PuLP; solver vét cạn không cần dependency solver ngoài. | [`scripts/run_workstream02.py`](../scripts/run_workstream02.py) ghi các bảng kết quả RCSP từ những giá trị trả về. |
-| [`preprocess/seervada.py`](./preprocess/seervada.py) | Các đường dẫn CSV truyền cho `load_traffic_observations` hoặc `load_supervised_dataset`; mặc định train/test là `workstream03/train.csv` và `workstream03/test.csv`. CSV giao thông cần ngày, slot, edge, node, distance và travel time; feature/target được nạp từ hai CSV riêng. | Đọc và kiểm tra kiểu dữ liệu, giá trị hữu hạn, khóa trùng, cạnh/ID và kích thước X/y; có thể kiểm tra cạnh so với `Network`; đổi hàng feature thành mapping theo tên cột. | `TrafficObservation`, `SupervisedDataset`, hoặc các hàng mapping; không ghi file. | Được dùng bởi [`scripts/run_workstream04.py`](../scripts/run_workstream04.py), [`scripts/run_workstream05.py`](../scripts/run_workstream05.py), [`scripts/run_workstream06.py`](../scripts/run_workstream06.py) và [`routing/experiment.py`](./routing/experiment.py). |
-| [`preprocess/preprocess_pems_bay.py`](./preprocess/preprocess_pems_bay.py) | `run_pipeline(input_dir, output_dir)` hoặc CLI `--input-dir`, `--output-dir`, `--log-level`. Mặc định đọc trong `data/raw_perm_bay/` các file traffic `pems-bay`, adjacency `adj_mx_bay` và locations `graph_sensor_locations_bay` ở định dạng được hỗ trợ. Việc nhận dạng định dạng dựa trên nội dung file. | Kiểm tra nguồn, chuẩn hoá ID cảm biến, đọc traffic theo chunk, giữ thứ tự thời gian, đối chiếu ID/metadata và xác thực output bằng cách đọc lại; không nội suy traffic hay chuẩn hoá adjacency. | Trong `data/processed_perm_bay/` (hoặc `output_dir`): `traffic_speed_long.parquet`, `sensor_metadata.parquet`, `adjacency_matrix.parquet`, `sensor_id_mapping.parquet`, `data_quality_report.json`, `data_quality_report.md`. Pipeline không tạo biểu đồ. | Chạy module bằng `python -m src.preprocess.preprocess_pems_bay` từ thư mục gốc. Các file Parquet hiện chưa được module khác trong repository tiêu thụ trực tiếp. Chỉ dùng input pickle đáng tin cậy. |
-| [`models/baselines/group_mean.py`](./models/baselines/group_mean.py), [`models/baselines/linear_regression.py`](./models/baselines/linear_regression.py), [`models/nn/neural_network.py`](./models/nn/neural_network.py) | Feature và target cùng thứ tự cột; Group Mean nhận hàng dạng mapping. Các giá trị fit/predict được truyền trực tiếp, không tự đọc/ghi file. | Group Mean tính trung bình theo edge-slot-weekday, backoff lần lượt theo edge-slot, edge, rồi global mean. Linear Regression loại các cột tham chiếu cấu hình và fit scikit-learn. Neural Network fit `MLPRegressor` với early stopping. | Các model đã fit và các giá trị dự đoán (`GroupMeanPrediction`, tuple số); không tự ghi file. Linear Regression và Neural Network cần scikit-learn khi fit. | Được gọi bởi [`scripts/run_workstream04.py`](../scripts/run_workstream04.py) (hai baseline) và [`scripts/run_workstream05.py`](../scripts/run_workstream05.py) (NN). |
-| [`common/metrics.py`](./common/metrics.py), [`evaluation/regression.py`](./evaluation/regression.py) | Giá trị thật/dự đoán; hoặc quan sát giao thông, dự đoán, hàng dự đoán có khóa, kết quả routing và cặp phương pháp. | Tính MAE, MSE, RMSE, MAPE; tổng hợp theo slot; kiểm tra căn chỉnh row/key; chọn baseline/NN chỉ từ metric validation; so sánh tuyến và điểm thực tế theo cặp. | Dictionary metric, tuple hàng kết quả/so sánh và báo cáo căn chỉnh; không tự ghi file. | Dùng bởi script WS4–WS6; WS4/WS5 ghi dự đoán và metrics, WS6 ghi so sánh routing. |
-| [`routing/experiment.py`](./routing/experiment.py) | `Network`, dữ liệu train/test `TrafficObservation`, mapping tên mô hình sang mảng dự đoán cùng thứ tự với test; source/target, các tuyến tham chiếu tuỳ chọn và `max_paths`. | Liệt kê đường đi đơn giản; tạo trọng số khoảng cách, trung bình train, dự đoán theo edge/ngày/slot và Oracle; chọn tuyến tốt nhất, chấm theo actual test và tính regret. Tóm tắt tuyến mode, trung bình, độ lệch chuẩn và số ngày trùng Oracle. | `RoutingResult` cho mỗi slot/ngày/phương pháp và `RoutingSummary`; không ghi file. Oracle là mốc tham chiếu sử dụng actual test, không phải dự đoán triển khai. | Được gọi bởi [`scripts/run_workstream06.py`](../scripts/run_workstream06.py); kết quả được dùng tiếp bởi [`evaluation/regression.py`](./evaluation/regression.py) và [`report/`](./report/). |
-| [`report/markdown.py`](./report/markdown.py), [`report/plots.py`](./report/plots.py) | Các hàng mapping/summary, hoặc dữ liệu lịch sử huấn luyện và summary routing; các hàm vẽ nhận `output_path`. | Render bảng và tóm tắt Markdown; vẽ lịch sử loss NN, actual time theo slot, regret và tuyến phổ biến. | Hàm Markdown trả chuỗi; hàm vẽ lưu ảnh tại đường dẫn caller cung cấp (Matplotlib). | Các script WS5/WS6 lưu kết quả và hình vào thư mục outputs tương ứng. |
-| [`adapters/seervada.py`](./adapters/seervada.py) | `csv_path` (mặc định `data/processed_seervada/seervada_network.csv`) với các cột mạng Seervada. | Đọc CSV và tạo schema adapter riêng `SeervadaNetwork`/`SeervadaEdge`; không chuyển sang schema chuẩn `network.schema.Network`. | Trả object adapter, không ghi file. | Hiện không có downstream caller trong scripts; các workstream sử dụng loader chuẩn [`network/seervada.py`](./network/seervada.py). |
-| [`common/schema.py`](./common/schema.py) | Không đọc dữ liệu; khai báo kiểu `NetworkRecord`. | Định nghĩa cấu trúc record bằng `TypedDict`. | Kiểu tĩnh, không sinh output lúc chạy. | Hiện không có consumer trực tiếp được tìm thấy trong repository. |
+```powershell
+python scripts\run_workstream01.py --dataset seervada --artifacts-root .
+python scripts\run_workstream02.py --dataset seervada --artifacts-root .
+python scripts\run_workstream03.py --dataset seervada --artifacts-root .
+python scripts\run_workstream04.py --dataset seervada --artifacts-root .
+python scripts\run_workstream05.py --dataset seervada --artifacts-root .
+python scripts\run_workstream06.py --dataset seervada --artifacts-root .
+python scripts\make_report.py --dataset seervada --artifacts-root .
+```
 
-## Script downstream theo workstream
+Tất cả runner dùng chung `stage_dir(dataset, stage, root)` để xác định đường
+dẫn. `--artifacts-root` mặc định là gốc repository và là gốc thay thế cho cây
+`artifacts/`, `data/processed/` và `docs/report/`. `--output-dir` vẫn được nhận
+như alias tương thích nhưng phát cảnh báo deprecated. Root giống nhau phải được
+truyền cho mọi stage để downstream đọc đúng các file upstream. Khi thiếu file
+ở cấu trúc mới, runner chỉ với Seervada sẽ thử `workstreamXX/outputs/` cũ và
+cảnh báo; file không bị di chuyển.
 
-| Script | Các API trong `src` được dùng | Nơi lưu output |
+| Stage | Input chính | Output |
 |---|---|---|
-| [`scripts/run_workstream01.py`](../scripts/run_workstream01.py) | Loader/xác thực mạng Seervada, Dijkstra, vét cạn và xác minh đường đi. | `workstream01/outputs/`: bảng đường đi và tóm tắt shortest path. |
-| [`scripts/run_workstream02.py`](../scripts/run_workstream02.py) | Loader mạng và RCSP, MILP/vét cạn, độ nhạy và xác minh nghiệm. | `workstream02/outputs/`: bảng sensitivity, verification và network consistency. |
-| [`scripts/run_workstream03.py`](../scripts/run_workstream03.py) | Script này không gọi module `src`; tạo train/test và feature/target cho các workstream tiếp theo. | `workstream03/outputs/`, được loader trong `preprocess/seervada.py` và các script WS4–WS6 sử dụng. |
-| [`scripts/run_workstream04.py`](../scripts/run_workstream04.py) | Loader supervised/traffic, Group Mean, Linear Regression và metrics. | `workstream04/outputs/`: prediction CSV, metrics, hệ số và JSON tổng hợp. |
-| [`scripts/run_workstream05.py`](../scripts/run_workstream05.py) | Loader supervised/traffic, Neural Network, metrics và biểu đồ loss. | `workstream05/outputs/`: prediction, metrics, model pickle và `loss_curve.png`. |
-| [`scripts/run_workstream06.py`](../scripts/run_workstream06.py) | Loader network/traffic, routing, so sánh cặp, render Markdown và plot. | `workstream06/outputs/`: bảng kết quả/tổng hợp, Markdown và các PNG. |
+| WS1 | YAML adapter và nguồn network | `artifacts/<ds>/network/` (I1), `artifacts/<ds>/paths/` (I2) |
+| WS2 | WS1 `network/` I1, cấu hình `rcsp_path` | `artifacts/<ds>/rcsp/` (I3) |
+| WS3 | WS1 I1 network, adapter observations (PEMS-BAY Parquet trong `data/processed/<ds>/`) | `data/processed/<ds>/` (I4) |
+| WS4 | WS1 `network/` I1, WS3 `data/processed/<ds>/` | `artifacts/<ds>/predictions/` (I5), `artifacts/<ds>/metrics/` (I6) |
+| WS5 | WS1 `network/` I1, WS3 `data/processed/<ds>/` | `artifacts/<ds>/predictions/` (I5), `artifacts/<ds>/metrics/` (I6) |
+| WS6 | WS1 I1, WS2 I3, WS3 I4, WS4/5 I5 | `artifacts/<ds>/routing/` (I7/I8); contract errors ở `artifacts/<ds>/_errors/` |
+| make_report | WS1 paths, WS2 RCSP, WS4/5 metrics, WS6 routing | `docs/report/<ds>_report.md` |
+| build_dataset | WS1 I1 network và PEMS-BAY `traffic_speed_long.parquet` trong `data/processed/pemsbay/` | `data/processed/pemsbay/model_dataset/` |
 
-Module thuần tính toán không tạo bảng hoặc biểu đồ ngoài các hàm vẽ trong
-`report/`; việc đặt tên và lưu phần lớn output do các script downstream quyết
-định. Tham số và đường dẫn mặc định cụ thể được khai báo trong từng module hoặc
-script tương ứng.
+Raw PEMS-BAY Parquet và quality report được ghi vào
+`data/processed/pemsbay/`; `build_dataset.py` ghi dataset hourly vào
+`data/processed/pemsbay/model_dataset/` để không ghi đè I4 do WS3 tạo.
+Ví dụ:
+
+```powershell
+python scripts\run_workstream01.py --dataset pemsbay --artifacts-root .
+python scripts\build_dataset.py --dataset pemsbay --artifacts-root .
+```
+
+PEMS-BAY để `sensor_ids`, `source` và `target` trống theo mặc định. Adapter tự
+chọn `n_sensors` cảm biến liên thông bằng BFS xác định từ sensor bậc cao nhất
+có thành phần đủ lớn (hoặc `seed_sensor`), loại sensor không có tốc độ hợp lệ;
+sau đó chọn cặp endpoint có
+khoảng cách shortest-path theo số bước lớn nhất, ưu tiên nhiều simple path hơn,
+theo thứ tự từ điển để phá hòa, trong giới hạn `max_paths`. Danh sách cảm biến,
+endpoint và tiêu chí được giữ trong metadata của adapter. Có thể cung cấp danh
+sách/cặp tường minh qua YAML. `direction_policy` chọn giữ cung adjacency
+(`directed`) hoặc hợp nhất thành cạnh vô hướng (`undirected`).
+
+Luồng PEMS-BAY thống nhất:
+
+```text
+data/raw_perm_bay (H5/PKL/CSV)
+  -> scripts/run_preprocess_pems_bay.py
+  -> src/adapters/pemsbay_prepare.py
+  -> traffic_speed_long.parquet + báo cáo chất lượng
+  -> WS1 publishes I1 network
+  -> scripts/build_dataset.py
+       -> PemsBayAdapter.build_observations (Parquet + I1 -> sample 5 phút theo cạnh)
+       -> src/preprocess/dataset.py (hourly, lag, split; cleaner dùng chung)
+```
+
+Parquet đầu vào adapter yêu cầu `time_index`, `sensor_id`, `speed`; `timestamp`
+là tùy chọn. Preprocess raw hiện xuất đủ bốn cột, trong đó `timestamp` có thể
+null.
+`build_observations()` gán tốc độ sensor tại endpoint `edge.v` cho cạnh (với
+cạnh directed đây là sensor downstream; cạnh undirected dùng endpoint `v`
+theo thứ tự node ổn định), làm sạch và trả observations 5 phút đã chuẩn hóa.
+`build_dataset.py` chuyển các observations đó sang hàm tổng hợp giờ, tạo lag
+và split trong module preprocess dùng chung.
+Tốc độ được hiểu mặc định là mph; travel time (phút) dùng
+`distance_km / (speed_mph * 1.609344) * 60`. Chiều dài Haversine là xấp xỉ
+đường chim bay, không phải chiều dài đường thực tế. `build_dataset.py` chỉ đọc
+Parquet đã preprocess; hãy chạy launcher trước. RCSP vẫn chỉ chạy khi dataset
+có `rcsp_path` tương ứng được cấu hình.
+
+Launcher nhận `--input-dir`, `--artifacts-root`, và `--log-level`; mặc định
+lần lượt là `data/raw_perm_bay`, gốc repository, và `INFO`. `--output-dir` là
+alias deprecated của `--artifacts-root`.
+
+`run_workstream03.py` gọi `src.preprocess.prepare_observation_splits`: split
+theo ngày tuần tự, không shuffle; one-hot category và scaler distance chỉ fit
+trên train. Các tên file X/y, raw splits, manifest và pipeline JSON được giữ
+tương thích với WS4/WS5 hiện tại.
+
+## Hợp đồng I1–I8
+
+Schema cột bắt buộc, file trao đổi và producer/consumer cụ thể được ghi trong
+[docs/contracts/interfaces.md](docs/contracts/interfaces.md).
+
+| ID | Từ → Đến | Nội dung / cơ chế | Trạng thái |
+|---|---|---|---|
+| I1 | M1 → M2, M3, M4, M8 | Network nodes/edges/problem parameters; CSV loader và adapter | Đã có |
+| I2 | M2 → M3, M8, M9 | Simple paths và shortest path; file CSV + API | Đã có |
+| I3 | M3 → M8, M9 | WS2 ghi `rcsp_sensitivity.csv`; WS6 đọc các dòng `Optimal`, chuyển route thành `RouteReference` trung gian và chấm bằng actual test. M8 không import `src.rcsp`. | Đã có cho dataset có RCSP input |
+| I4 | M4 → M5, M6, M7, M8 | Train/valid/test, fitted pipeline, split manifest; file | Đã có |
+| I5 | M5, M6 → M7, M8 | Prediction theo khóa `edge_id, day, time_slot`; file | Đã có |
+| I6 | M7 ← M5, M6; M7 → M9 | Hàm evaluation và bảng metrics; API + file | Đã có |
+| I7 | M8 → M2 | Gọi shortest path với edge weights tùy chọn | Đã có |
+| I8 | M8 → M9 | Routing result theo slot và `method_family`/nguồn trọng số; file | Đã có |
+
+## Module M0–M9
+
+| ID | Module | Trách nhiệm | Trạng thái |
+|---|---|---|---|
+| M0 | `src/common` | Config, file I/O, schema validators, error contracts | Đã có; logging chuẩn hóa còn thiếu |
+| M1 | `src/network`, `src/adapters` | Đọc/mã hóa/kiểm tra network Seervada hoặc subnetwork PEMS-BAY | Đã có |
+| M2 | `src/shortest_path` | Dijkstra, simple paths, cross-check; Dijkstra nhận weights tùy chọn | Đã có |
+| M3 | `src/rcsp` | 0–1 MILP, solver, kiểm chứng và sensitivity | Đã có, phụ thuộc input/solver |
+| M4 | `src/preprocess`, `src/adapters` | Làm sạch, features, chronological split, pipeline và data dictionary | Đã có |
+| M5 | `src/models/baselines` | Group Mean và Linear Regression | Đã có |
+| M6 | `src/models/nn` | MLP, fit và training history | Đã có |
+| M7 | `src/evaluation`, `src/common/metrics.py` | Regression metrics, alignment và lựa chọn model từ validation | Đã có |
+| M8 | `src/routing` | Route weights, shortest-path selection và scoring bằng actual; RCSP routes chỉ nhận dạng tên + tuple node | Đã có |
+| M9 | `src/report` | Render I2, I3, I6, I8; tổng hợp Markdown với `build_report` | Đã có |
+
+Adapter implement `build_network()` và `build_observations()`; khoảng cách được
+chuẩn hóa về km và travel time về phút. PEMS-BAY dùng Haversine xấp xỉ và gán
+tốc độ sensor đích cho cạnh đi vào sensor đó.
+
+Contract I3→M8: M3/WS2 xuất các route và giới hạn trong file CSV
+`rcsp_sensitivity.csv`. M8 không phụ thuộc package RCSP; WS6 parse đường đi và
+truyền mỗi nghiệm tối ưu qua `RouteReference`. Mỗi route phải nối đúng source
+với target và chỉ đi trên cạnh có trong network. Actual test travel time dùng
+để tính `actual_time` và regret so với Oracle.
+
+## Tạo báo cáo hợp nhất
+
+`scripts/make_report.py` đọc các file kết quả của WS1–WS6 rồi gọi
+`src.report.build_report(...)`; output mặc định là
+`docs/report/<dataset>_report.md`. Nếu một nhóm kết quả chưa tồn tại, báo cáo
+hiển thị `chưa có kết quả` cho mục tương ứng thay vì dừng.

@@ -1,4 +1,4 @@
-"""Load resource costs and attach them to the canonical network schema."""
+"""Load RCSP resource costs and attach them to the canonical network schema."""
 
 from __future__ import annotations
 
@@ -11,10 +11,6 @@ from .schema import EdgeResource, RCSPProblem
 from .validation import validate_problem
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_RCSP_CSV = (
-    REPOSITORY_ROOT / "data" / "processed_seervada" / "seervada_rcsp_teaching.csv"
-)
 REQUIRED_COLUMNS = {"node_u", "node_v", "distance", "time", "directed"}
 DEFAULT_RESOURCE_UNIT = "minutes"
 
@@ -27,7 +23,7 @@ def _edge_key(u: str, v: str, directed: bool) -> tuple[str, str, str]:
 
 
 def load_rcsp_problem(
-    csv_path: str | Path = DEFAULT_RCSP_CSV,
+    csv_path: str | Path,
     *,
     network: Network | None = None,
     resource_unit: str = DEFAULT_RESOURCE_UNIT,

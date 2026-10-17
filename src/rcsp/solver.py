@@ -1,4 +1,4 @@
-"""Exact resource-constrained shortest-path solvers."""
+"""Exact resource-constrained shortest-path (RCSP) solvers."""
 
 from __future__ import annotations
 

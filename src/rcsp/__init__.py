@@ -1,6 +1,6 @@
-"""Resource-constrained shortest-path data, solvers, and verification."""
+"""Public API for resource-constrained shortest-path (RCSP) tools."""
 
-from .data import DEFAULT_RCSP_CSV, load_rcsp_problem
+from .data import load_rcsp_problem
 from .schema import (
     BruteForceResult,
     EdgeResource,
@@ -24,7 +24,6 @@ from .verify import (
 )
 
 __all__ = [
-    "DEFAULT_RCSP_CSV",
     "BruteForceResult",
     "EdgeResource",
     "RCSPCrossCheck",

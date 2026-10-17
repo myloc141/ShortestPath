@@ -5,6 +5,7 @@ from __future__ import annotations
 import heapq
 import math
 from dataclasses import dataclass
+from typing import Mapping
 
 from ..network.encoding import build_adjacency
 from ..network.schema import Network
@@ -26,9 +27,19 @@ class ShortestPathResult:
         return math.isfinite(self.distance)
 
 
-def dijkstra(network: Network, source: str, target: str) -> ShortestPathResult:
-    """Find a shortest path; ties use the lexicographically smallest node path."""
-    adjacency = build_adjacency(network)
+def dijkstra(
+    network: Network,
+    source: str,
+    target: str,
+    *,
+    weights: Mapping[str, float] | None = None,
+) -> ShortestPathResult:
+    """Find a shortest path, breaking ties by lexicographic node sequence.
+
+    When ``weights`` is provided, it maps every edge ID to that edge's
+    non-negative traversal weight. Otherwise, the network distances are used.
+    """
+    adjacency = build_adjacency(network, weights=weights)
     if source not in adjacency:
         raise ValueError(f"Source node {source!r} is not in the network")
     if target not in adjacency:

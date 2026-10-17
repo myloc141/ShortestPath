@@ -2,19 +2,47 @@
 
 from __future__ import annotations
 
-from _runner_utils import workstream_output, write_csv
-from src.network.seervada import load_seervada_network
-from src.rscp.data import DEFAULT_RCSP_CSV, load_rcsp_problem
-from src.rscp.sensitivity import sensitivity_analysis
-from src.rscp.solver import brute_force_rcsp, solve_rcsp_milp
-from src.rscp.verify import cross_check_with_brute_force, verify_solution
+from _runner_utils import (
+    load_dataset_adapter,
+    parse_workstream_args,
+    load_network_artifact,
+    configured_path,
+    resolve_artifacts_root,
+    routing_endpoints,
+    stage_dir,
+    write_csv,
+)
+from src.rcsp.data import load_rcsp_problem
+from src.rcsp.sensitivity import sensitivity_analysis
+from src.rcsp.solver import brute_force_rcsp, solve_rcsp_milp
+from src.rcsp.verify import cross_check_with_brute_force, verify_solution
 
 
 def main() -> None:
-    network = load_seervada_network()
-    problem = load_rcsp_problem(DEFAULT_RCSP_CSV, network=network)
-    limits = (17, 18, 19, 20, None)
-    sensitivity = sensitivity_analysis(problem, limits)
+    args = parse_workstream_args(2, __doc__ or "Run Workstream 02")
+    root = resolve_artifacts_root(args.artifacts_root, args.output_dir)
+    adapter, config = load_dataset_adapter(args.dataset, root=root)
+    if not config.rcsp_path:
+        raise ValueError(
+            f"Dataset {args.dataset!r} has no RCSP resource file configured"
+        )
+    adapter.build_network()
+    network = load_network_artifact(args.dataset, adapter, root=root)
+    source, target = routing_endpoints(
+        adapter, source=config.source, target=config.target
+    )
+    problem = load_rcsp_problem(
+        configured_path(config.rcsp_path),
+        network=network,
+    )
+    limits = config.time_limits or (17, 18, 19, 20, None)
+    sensitivity = sensitivity_analysis(
+        problem,
+        limits,
+        source=source,
+        target=target,
+        max_paths=config.max_paths,
+    )
     sensitivity_rows = [
         {
             "resource_limit": item.resource_limit,
@@ -31,14 +59,30 @@ def main() -> None:
 
     verification_rows = []
     for limit in limits:
-        milp_result = solve_rcsp_milp(problem, limit)
-        exhaustive = brute_force_rcsp(problem, limit)
+        milp_result = solve_rcsp_milp(
+            problem, limit, source=source, target=target
+        )
+        exhaustive = brute_force_rcsp(
+            problem,
+            limit,
+            source=source,
+            target=target,
+            max_paths=config.max_paths,
+        )
         verification = (
-            verify_solution(problem, milp_result)
+            verify_solution(
+                problem, milp_result, source=source, target=target
+            )
             if milp_result.status == "Optimal"
             else None
         )
-        cross_check = cross_check_with_brute_force(problem, milp_result)
+        cross_check = cross_check_with_brute_force(
+            problem,
+            milp_result,
+            source=source,
+            target=target,
+            max_paths=config.max_paths,
+        )
         verification_rows.append(
             {
                 "resource_limit": limit,
@@ -69,10 +113,29 @@ def main() -> None:
         }
         for edge in problem.network.edges
     ]
-    output = workstream_output(2)
-    write_csv(output / "rcsp_sensitivity.csv", sensitivity_rows)
-    write_csv(output / "rcsp_verification.csv", verification_rows)
-    write_csv(output / "rcsp_network_consistency.csv", consistency_rows)
+    output = stage_dir(args.dataset, "rcsp", root)
+    output.mkdir(parents=True, exist_ok=True)
+    write_csv(
+        output / "rcsp_sensitivity.csv",
+        sensitivity_rows,
+        with_meta=args.with_meta,
+        dataset=args.dataset,
+        interface_id="I3",
+    )
+    write_csv(
+        output / "rcsp_verification.csv",
+        verification_rows,
+        with_meta=args.with_meta,
+        dataset=args.dataset,
+        interface_id="I3",
+    )
+    write_csv(
+        output / "rcsp_network_consistency.csv",
+        consistency_rows,
+        with_meta=args.with_meta,
+        dataset=args.dataset,
+        interface_id="I3",
+    )
     print(f"Saved RCSP sensitivity, verification, and consistency tables to {output}")
 
 

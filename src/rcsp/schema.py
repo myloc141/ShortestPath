@@ -1,4 +1,4 @@
-"""Shared data structures for resource-constrained shortest paths."""
+"""Shared data structures for resource-constrained shortest-path (RCSP) tools."""
 
 from __future__ import annotations
 

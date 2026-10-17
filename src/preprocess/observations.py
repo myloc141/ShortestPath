@@ -1,4 +1,4 @@
-"""Typed readers for Seervada traffic and preprocessed feature CSV files."""
+"""Dataset-neutral readers for travel-time observations and feature CSV files."""
 
 from __future__ import annotations
 
@@ -11,9 +11,17 @@ from typing import Mapping
 from ..network.schema import Network
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_TRAIN_CSV = REPOSITORY_ROOT / "workstream03" / "train.csv"
-DEFAULT_TEST_CSV = REPOSITORY_ROOT / "workstream03" / "test.csv"
+_DISTANCE_TO_KM = {"km": 1.0, "m": 0.001, "mi": 1.609344}
+_TIME_TO_MINUTES = {
+    "minutes": 1.0,
+    "minute": 1.0,
+    "min": 1.0,
+    "seconds": 1.0 / 60.0,
+    "s": 1.0 / 60.0,
+    "hours": 60.0,
+    "hour": 60.0,
+    "h": 60.0,
+}
 
 
 @dataclass(frozen=True)
@@ -27,6 +35,9 @@ class TrafficObservation:
     v: str
     distance: float
     travel_time: float
+    timestamp: str | None = None
+    speed_mph: float | None = None
+    is_imputed: bool = False
 
 
 @dataclass(frozen=True)
@@ -46,14 +57,22 @@ def edge_key(u: str, v: str) -> tuple[str, str]:
     return tuple(sorted((str(u), str(v))))
 
 
-def load_traffic_observations(
+def load_observations(
     csv_path: str | Path,
     *,
     network: Network | None = None,
     expected_edge_ids: set[str] | None = None,
+    distance_unit: str = "km",
+    time_unit: str = "minutes",
 ) -> tuple[TrafficObservation, ...]:
-    """Read WS3 train/test rows and validate them against an optional network."""
+    """Read observations and normalize distances to km and times to minutes."""
     path = Path(csv_path)
+    distance_factor = _DISTANCE_TO_KM.get(distance_unit.casefold())
+    time_factor = _TIME_TO_MINUTES.get(time_unit.casefold())
+    if distance_factor is None:
+        raise ValueError(f"Unsupported distance unit {distance_unit!r}")
+    if time_factor is None:
+        raise ValueError(f"Unsupported time unit {time_unit!r}")
     required = {
         "day",
         "day_of_week",
@@ -78,8 +97,8 @@ def load_traffic_observations(
             try:
                 day = int(row["day"])
                 slot = int(row["time_slot"])
-                distance = float(row["distance"])
-                travel_time = float(row["travel_time"])
+                distance = float(row["distance"]) * distance_factor
+                travel_time = float(row["travel_time"]) * time_factor
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"{path}:{line_number}: invalid numeric value") from exc
             edge_id = row["edge_id"].strip()

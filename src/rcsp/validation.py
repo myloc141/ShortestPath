@@ -1,4 +1,4 @@
-"""Validation and arc expansion for resource-constrained network data."""
+"""Validation and arc expansion for resource-constrained (RCSP) network data."""
 
 from __future__ import annotations
 

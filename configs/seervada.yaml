@@ -1,0 +1,13 @@
+dataset: seervada
+network_path: data/processed_seervada/seervada_network.csv
+observations_path: data/processed_seervada/seervada_travel_time_SIMULATED.csv
+rcsp_path: data/processed_seervada/seervada_rcsp_teaching.csv
+source: O
+target: T
+distance_unit: km
+time_unit: minutes
+time_limits: []
+slots: []
+seed: 2026
+train_fraction: 0.8
+valid_fraction: 0.1
