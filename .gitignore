@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Internal inspection / audit / scratch artifacts
+_audit_package/
+scratch/
+team_sheets/
+team_doc_tabs/
+docs_export.txt
+team_docs_live_export.docx
+team_docs_live_export.txt
+team_drive_page.html
+instructor_drive_page.html
+topics_extracted.txt
+sheet_export.csv
+*.tmp
+*.zip
+*_AUDIT_BUNDLE*
+*_Audit_Package*
+AUDIT_BEFORE_CHANGES.md
+Topics.pdf
+**/Untitled-1.py
