@@ -11,7 +11,7 @@ from pathlib import Path
 import sys
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT_DIR = REPOSITORY_ROOT / "data" / "raw_perm_bay"
+DEFAULT_INPUT_DIR = REPOSITORY_ROOT / "data" / "raw_pems_bay"
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 

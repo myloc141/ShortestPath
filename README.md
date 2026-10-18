@@ -76,7 +76,7 @@ sách/cặp tường minh qua YAML. `direction_policy` chọn giữ cung adjacen
 Luồng PEMS-BAY thống nhất:
 
 ```text
-data/raw_perm_bay (H5/PKL/CSV)
+data/raw_pems_bay (H5/PKL/CSV)
   -> scripts/run_preprocess_pems_bay.py
   -> src/adapters/pemsbay_prepare.py
   -> traffic_speed_long.parquet + báo cáo chất lượng
@@ -101,7 +101,7 @@ Parquet đã preprocess; hãy chạy launcher trước. RCSP vẫn chỉ chạy 
 có `rcsp_path` tương ứng được cấu hình.
 
 Launcher nhận `--input-dir`, `--artifacts-root`, và `--log-level`; mặc định
-lần lượt là `data/raw_perm_bay`, gốc repository, và `INFO`. `--output-dir` là
+lần lượt là `data/raw_pems_bay`, gốc repository, và `INFO`. `--output-dir` là
 alias deprecated của `--artifacts-root`.
 
 `run_workstream03.py` gọi `src.preprocess.prepare_observation_splits`: split

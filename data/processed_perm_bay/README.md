@@ -7,7 +7,7 @@ The launcher now writes Parquet and quality reports to
 
 ## Inputs
 
-By default, the script searches recursively in `data/raw_perm_bay/` for one
+By default, the script searches recursively in `data/raw_pems_bay/` for one
 file with each expected base name:
 
 - `pems-bay` — traffic speed observations; HDF5, Parquet, or CSV content.
@@ -17,9 +17,12 @@ file with each expected base name:
 The script inspects file signatures/content rather than trusting the extension.
 It fails clearly if a source is missing, duplicated, ambiguous, or has an
 unsupported schema. HDF5 input is inspected for keys and must contain one
-unambiguous pandas table. Traffic IDs must be explicit in wide column names or
+unambiguous pandas table or fixed-format DataFrame. Traffic IDs must be
+explicit in wide column names or
 long-format sensor ID values. Sensor order is aligned using IDs, never by row
 position.
+Location CSV files may have a header or the standard headerless
+`sensor_id,latitude,longitude` column order.
 
 **Security:** only use `adj_mx_bay` pickle files from a trusted source. Loading a
 pickle can execute code.
@@ -37,7 +40,7 @@ Paths are configurable:
 
 ```powershell
 python scripts\run_preprocess_pems_bay.py `
-  --input-dir data/raw_perm_bay `
+  --input-dir data/raw_pems_bay `
   --artifacts-root . `
   --log-level INFO
 ```

@@ -78,7 +78,7 @@ def _read_adjacency(path: Path) -> tuple[list[str], object]:
     Pickle files can execute code when loaded; use this only with trusted input.
     """
     with path.open("rb") as pickle_file:
-        payload = pickle.load(pickle_file)
+        payload = pickle.load(pickle_file, encoding="latin1")
     if not isinstance(payload, (tuple, list)) or len(payload) != 3:
         raise ValueError(
             f"{path}: expected a (sensor_ids, index_map, adjacency_matrix) tuple"

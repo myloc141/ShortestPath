@@ -21,6 +21,7 @@ import math
 import os
 from pathlib import Path
 import pickle
+import pickletools
 import re
 import tempfile
 from typing import Any, Generator, Iterator, Mapping, Sequence
@@ -114,6 +115,16 @@ def detect_format(path: Path) -> str:
         raise PipelineError(f"Input file is empty: {path}")
     if header[:1] == b"\x80":
         return "pickle"
+    if path.suffix.casefold() in {".pkl", ".pickle"}:
+        try:
+            last_opcode = None
+            for opcode, _, _ in pickletools.genops(path.read_bytes()):
+                last_opcode = opcode
+        except (ValueError, UnicodeDecodeError):
+            pass
+        else:
+            if last_opcode is not None and last_opcode.name == "STOP":
+                return "pickle"
     try:
         header.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
@@ -164,7 +175,7 @@ def discover_input(
 
 
 def inspect_hdf5(path: Path) -> dict[str, Any]:
-    """List HDF5 keys and inspect pandas-compatible table dimensions."""
+    """List HDF5 keys and inspect pandas-compatible frame dimensions."""
     try:
         with pd.HDFStore(path, mode="r") as store:
             descriptions = []
@@ -177,6 +188,8 @@ def inspect_hdf5(path: Path) -> dict[str, Any]:
                 }
                 if hasattr(storer, "nrows"):
                     description["nrows"] = storer.nrows
+                if hasattr(storer, "shape") and storer.shape is not None:
+                    description["shape"] = [int(size) for size in storer.shape]
                 if hasattr(storer, "non_index_axes"):
                     axes = storer.non_index_axes
                     if axes and len(axes[0]) > 1:
@@ -285,7 +298,7 @@ def load_adjacency(input_file: InputFile) -> AdjacencyData:
     if input_file.detected_format == "pickle":
         try:
             with input_file.path.open("rb") as file:
-                payload = pickle.load(file)
+                payload = pickle.load(file, encoding="latin1")
         except Exception as exc:
             raise PipelineError(
                 f"Cannot load trusted adjacency pickle {input_file.path}: {exc}"
@@ -385,12 +398,30 @@ def _resolve_columns(
 def load_locations(input_file: InputFile) -> LocationData:
     """Normalize location columns and retain every record for auditing."""
     frame = _read_tabular(input_file.path, input_file.detected_format)
-    resolved = _resolve_columns(
-        list(frame.columns),
-        LOCATION_COLUMN_ALIASES,
-        required={"sensor_id", "latitude", "longitude"},
-        path=input_file.path,
-    )
+    normalized_columns = {_normalized_name(column) for column in frame.columns}
+    location_aliases = set().union(*LOCATION_COLUMN_ALIASES.values())
+    if (
+        input_file.detected_format == "csv_text"
+        and len(frame.columns) == 3
+        and not normalized_columns.intersection(location_aliases)
+    ):
+        frame = pd.read_csv(
+            input_file.path,
+            header=None,
+            names=("sensor_id", "latitude", "longitude"),
+        )
+        resolved = {
+            "sensor_id": "sensor_id",
+            "latitude": "latitude",
+            "longitude": "longitude",
+        }
+    else:
+        resolved = _resolve_columns(
+            list(frame.columns),
+            LOCATION_COLUMN_ALIASES,
+            required={"sensor_id", "latitude", "longitude"},
+            path=input_file.path,
+        )
     normalized = pd.DataFrame(
         {
             "sensor_id": frame[resolved["sensor_id"]].astype("string").str.strip(),
@@ -437,18 +468,23 @@ def _inspect_traffic_source(input_file: InputFile) -> dict[str, Any]:
     if input_file.detected_format == "hdf5":
         inspection = inspect_hdf5(input_file.path)
         candidates = [
-            item for item in inspection["keys"] if item.get("nrows") is not None
+            item
+            for item in inspection["keys"]
+            if item.get("nrows") is not None or item.get("shape") is not None
         ]
         if len(candidates) != 1:
             raise PipelineError(
-                f"{input_file.path}: expected one pandas table key, "
+                f"{input_file.path}: expected one pandas HDF5 object, "
                 f"found {len(candidates)}; keys={inspection['keys']}"
             )
         inspection["selected_key"] = candidates[0]["key"]
-        inspection["selected_shape"] = [
-            candidates[0]["nrows"],
-            len(candidates[0].get("columns", [])),
-        ]
+        shape = candidates[0].get("shape")
+        if shape is None:
+            shape = [
+                int(candidates[0]["nrows"]),
+                len(candidates[0].get("columns", [])),
+            ]
+        inspection["selected_shape"] = shape
         return inspection
     if input_file.detected_format == "parquet":
         parquet_file = pq.ParquetFile(input_file.path)

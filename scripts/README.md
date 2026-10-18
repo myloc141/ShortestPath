@@ -36,7 +36,7 @@ WS1 publishes the I1 network consumed by the model-data builder:
 
 ```powershell
 python scripts\run_preprocess_pems_bay.py `
-  --input-dir data\raw_perm_bay `
+  --input-dir data\raw_pems_bay `
   --artifacts-root . `
   --log-level INFO
 python scripts\run_workstream01.py --dataset pemsbay --artifacts-root .
