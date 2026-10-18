@@ -1,0 +1,176 @@
+{
+  "dataset": "seervada_travel_time_SIMULATED.csv",
+  "total_rows": 1800,
+  "total_columns": 10,
+  "missing_count": 0,
+  "invalid_travel_time_count": 0,
+  "descriptive_statistics": {
+    "mean": 6.5,
+    "std": 3.38,
+    "median": 5.93,
+    "q25": 3.94,
+    "q75": 8.27,
+    "iqr": 4.33,
+    "min": 1.39,
+    "max": 21.67,
+    "skewness": 0.94,
+    "kurtosis": 0.87
+  },
+  "time_slot_breakdown": [
+    {
+      "time_slot": 1,
+      "time_slot_name": "06:00-08:00",
+      "Mean": 4.465166666666667,
+      "Std": 1.8248569906191823,
+      "Min": 1.39,
+      "Median": 4.455,
+      "Max": 8.86
+    },
+    {
+      "time_slot": 2,
+      "time_slot_name": "08:00-10:00",
+      "Mean": 7.657,
+      "Std": 3.603635490240114,
+      "Min": 1.97,
+      "Median": 7.34,
+      "Max": 19.15
+    },
+    {
+      "time_slot": 3,
+      "time_slot_name": "11:30-13:30",
+      "Mean": 5.905027777777778,
+      "Std": 2.547423188583556,
+      "Min": 1.69,
+      "Median": 5.835,
+      "Max": 16.4
+    },
+    {
+      "time_slot": 4,
+      "time_slot_name": "16:30-18:30",
+      "Mean": 8.363416666666666,
+      "Std": 4.062224885906354,
+      "Min": 2.16,
+      "Median": 7.885,
+      "Max": 21.67
+    },
+    {
+      "time_slot": 5,
+      "time_slot_name": "19:30-21:30",
+      "Mean": 6.125333333333333,
+      "Std": 2.9069278310687,
+      "Min": 1.73,
+      "Median": 5.795,
+      "Max": 14.63
+    }
+  ],
+  "edge_breakdown": [
+    {
+      "edge_id": "A-B",
+      "distance": 2,
+      "Mean": 4.119800000000001,
+      "Std": 1.2658766068984044,
+      "Min": 2.28,
+      "Max": 6.92,
+      "Tốc độ TB (km/h quy ước)": 29.13
+    },
+    {
+      "edge_id": "A-D",
+      "distance": 7,
+      "Mean": 10.841000000000001,
+      "Std": 3.6282689033338373,
+      "Min": 5.35,
+      "Max": 21.67,
+      "Tốc độ TB (km/h quy ước)": 38.74
+    },
+    {
+      "edge_id": "B-C",
+      "distance": 1,
+      "Mean": 2.535266666666667,
+      "Std": 0.6204898440203825,
+      "Min": 1.42,
+      "Max": 4.08,
+      "Tốc độ TB (km/h quy ước)": 23.67
+    },
+    {
+      "edge_id": "B-D",
+      "distance": 4,
+      "Mean": 9.739933333333333,
+      "Std": 3.1313218463761983,
+      "Min": 5.22,
+      "Max": 17.22,
+      "Tốc độ TB (km/h quy ước)": 24.64
+    },
+    {
+      "edge_id": "B-E",
+      "distance": 3,
+      "Mean": 4.932666666666666,
+      "Std": 1.1193296571751181,
+      "Min": 2.86,
+      "Max": 9.11,
+      "Tốc độ TB (km/h quy ước)": 36.49
+    },
+    {
+      "edge_id": "C-E",
+      "distance": 4,
+      "Mean": 6.228000000000001,
+      "Std": 1.6278845332797025,
+      "Min": 3.27,
+      "Max": 10.33,
+      "Tốc độ TB (km/h quy ước)": 38.54
+    },
+    {
+      "edge_id": "D-E",
+      "distance": 1,
+      "Mean": 2.4876,
+      "Std": 0.6110884556847241,
+      "Min": 1.39,
+      "Max": 4.07,
+      "Tốc độ TB (km/h quy ước)": 24.12
+    },
+    {
+      "edge_id": "D-T",
+      "distance": 5,
+      "Mean": 8.101733333333334,
+      "Std": 2.665766506907767,
+      "Min": 3.9,
+      "Max": 15.36,
+      "Tốc độ TB (km/h quy ước)": 37.03
+    },
+    {
+      "edge_id": "E-T",
+      "distance": 7,
+      "Mean": 9.962133333333332,
+      "Std": 2.494576556625995,
+      "Min": 5.25,
+      "Max": 16.4,
+      "Tốc độ TB (km/h quy ước)": 42.16
+    },
+    {
+      "edge_id": "O-A",
+      "distance": 2,
+      "Mean": 5.502,
+      "Std": 1.8075854338512298,
+      "Min": 3.08,
+      "Max": 10.67,
+      "Tốc độ TB (km/h quy ước)": 21.81
+    },
+    {
+      "edge_id": "O-B",
+      "distance": 5,
+      "Mean": 7.4032,
+      "Std": 1.858769283241508,
+      "Min": 4.15,
+      "Max": 12.02,
+      "Tốc độ TB (km/h quy ước)": 40.52
+    },
+    {
+      "edge_id": "O-C",
+      "distance": 4,
+      "Mean": 6.184933333333333,
+      "Std": 1.486445581016804,
+      "Min": 3.18,
+      "Max": 9.72,
+      "Tốc độ TB (km/h quy ước)": 38.8
+    }
+  ]
+}

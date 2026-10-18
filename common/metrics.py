@@ -2,7 +2,27 @@
 Module: common/metrics.py
 Thư mục dùng chung cho toàn bộ dự án theo quy định của nhóm trưởng (Mỹ Lộc):
 '- mọi metrix (vd mse ... ) đều phải để vào thư mục common'
-Cung cấp các hàm đánh giá sai số chuẩn mực: MSE, RMSE, MAE, MAPE dùng chung cho WS4, WS5, WS6.
+
+INPUT:
+- y_true: array-like (1D vector) of ground truth target values (phút hoặc đơn vị đo lường tương ứng).
+- y_pred: array-like (1D vector) of predicted target values.
+- Dependencies: numpy.
+- Assumptions: y_true và y_pred có cùng độ dài n, các giá trị là số thực hữu hạn (finite real numbers).
+
+PROCESSING:
+- Mean Absolute Error (MAE): (1/n) * sum(|y_i - y_hat_i|)
+- Mean Squared Error (MSE): (1/n) * sum((y_i - y_hat_i)^2)
+- Root Mean Squared Error (RMSE): sqrt(MSE)
+- Mean Absolute Percentage Error (MAPE): (100/n) * sum(|(y_i - y_hat_i) / y_i|), với policy bảo vệ chia cho 0: lọc mask y_true != 0.
+
+OUTPUT:
+- Trả về số thực float cho từng metric đơn lẻ.
+- Trả về dictionary các chỉ số tổng hợp qua hàm evaluate_all(y_true, y_pred).
+
+DOWNSTREAM:
+- WS4 (Hà Minh - Baselines): đánh giá mô hình Group Mean và Linear Regression.
+- WS5 (Yến Nhi - Neural Network): đánh giá mô hình MLP trên cùng tập test.
+- WS6 (Mỹ Lộc - Routing): so sánh sai số dự báo trước và sau khi định tuyến.
 """
 
 import numpy as np

@@ -1,0 +1,18 @@
+{
+  "dataset_version": "v1.0-seervada-teaching",
+  "generated_at": "2026-10-12T15:47:00+07:00",
+  "git_head_commit": "9c985e1",
+  "hashes": {
+    "seervada_network.csv": "0afa87aa1a2189054848b008e7fd0b5c40e1b86b7867379afbc526ae6c3e3d17",
+    "seervada_rcsp_teaching.csv": "c3c864a0a1f39d7613ec34f18bcb288167622f74961e8275dc52d402e4cd6830",
+    "seervada_travel_time_SIMULATED.csv": "19c1391ec53141069136657597e9557bbad33c4e716c0ca6cbf91d50f936c501",
+    "seervada_travel_time_EXTENDED_NN.csv": "2927b836f5fd86c3127aaa4fcca422df2af2afc492f26d8a46dee1c846202e91",
+    "train.csv": "25cbf4050e916280bdcbd298e1cb8fe81a0776991c115d485efe53b12bf5bd21",
+    "test.csv": "460da2f86a3e8ea0c395da2f2214e4dc3a0ee893471940754046c756658e97df",
+    "X_train_preprocessed.csv": "4f42865e1e8f26b991dbfd3b786a4b829adfa2cc8bf86ca93a3fb427e471b24e",
+    "X_test_preprocessed.csv": "181c0544eb2c0518022772de00ec79bb9368afe68b3d3e7ef6153ef11be5e5e2",
+    "y_train.csv": "ad8f5dc7ba16af7cac7f2c147f7dc4a3e4d9bf01eaea986b7fd8af55a971aac9",
+    "y_test.csv": "c3fab4791e1e7d127cc1c22bf78e9a601c8eff422c07184e8125457018e24b85",
+    "preprocessing_pipeline.json": "9420f3e79c3161a6424d94d193e46c5e4294b3892f9ba95d62799d85a54f9fd9"
+  }
+}

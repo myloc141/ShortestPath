@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local virtual environment
+venv/
+.venv/
+env/
+
+# Scratch & temporary audit artifacts
+scratch/
+_audit_package/
+*.zip
+*.sha256.txt
+*.html
+team_sheets/
+team_doc_tabs/
+team_docs_live_export.*
+docs_export.txt
+sheet_export.csv
+topics_extracted.txt
+AUDIT_BEFORE_CHANGES.md
+WS3_*
+Topics.pdf
