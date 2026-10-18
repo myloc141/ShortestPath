@@ -15,6 +15,15 @@ class RoutingTimeWindow:
     end_hour: int
 
 
+DEFAULT_PEMS_BAY_TIME_SLOTS = (
+    RoutingTimeWindow("night", 0, 6),
+    RoutingTimeWindow("morning_peak", 6, 9),
+    RoutingTimeWindow("midday", 9, 16),
+    RoutingTimeWindow("evening_peak", 16, 19),
+    RoutingTimeWindow("evening", 19, 24),
+)
+
+
 @dataclass(frozen=True)
 class PipelineConfig:
     dataset: str
@@ -36,8 +45,12 @@ class PipelineConfig:
     sensor_ids: tuple[str, ...] = ()
     n_sensors: int = 25
     seed_sensor: str | None = None
+    extra_edges: int = 3
+    min_paths: int = 5
     max_paths: int = 1_000_000
     direction_policy: str = "directed"
+    time_slots: tuple[RoutingTimeWindow, ...] = ()
+    min_slot_coverage: float = 0.5
     routing_windows: tuple[RoutingTimeWindow, ...] = ()
     sample_interval_minutes: int = 5
     max_speed_imputation_gap: int = 3
@@ -52,9 +65,10 @@ def load_config(path: str | Path) -> PipelineConfig:
     Relative paths are resolved from the repository root, allowing paths such
     as a dataset configuration under ``configs/``. A legacy nested
     ``source.path`` is treated as the network input path. ``n_sensors``,
-    ``seed_sensor``, ``max_paths``, and ``direction_policy`` control automatic
-    sensor/network selection where applicable; defaults preserve existing
-    callers and directed-network behavior.
+    ``seed_sensor``, ``extra_edges``, ``min_paths``, ``max_paths``, and
+    ``direction_policy`` control automatic sensor/network selection where
+    applicable; defaults preserve existing callers and directed-network
+    behavior.
     """
     config_path = Path(path)
     if not config_path.is_absolute():
@@ -115,13 +129,37 @@ def load_config(path: str | Path) -> PipelineConfig:
             f"{config_path}: 'n_sensors' must be an integer from 20 to 30"
         )
     seed_sensor = optional_string("seed_sensor")
+    extra_edges = data.get("extra_edges", 3)
+    if (
+        not isinstance(extra_edges, int)
+        or isinstance(extra_edges, bool)
+        or not 0 <= extra_edges <= 9
+    ):
+        raise ValueError(
+            f"{config_path}: 'extra_edges' must be an integer from 0 to 9"
+        )
+    min_paths = data.get("min_paths", 5)
+    if (
+        not isinstance(min_paths, int)
+        or isinstance(min_paths, bool)
+        or min_paths < 1
+    ):
+        raise ValueError(
+            f"{config_path}: 'min_paths' must be a positive integer"
+        )
     max_paths = data.get("max_paths", 1_000_000)
     if (
         not isinstance(max_paths, int)
         or isinstance(max_paths, bool)
         or max_paths < 1
     ):
-        raise ValueError(f"{config_path}: 'max_paths' must be a positive integer")
+        raise ValueError(
+            f"{config_path}: 'max_paths' must be a positive integer"
+        )
+    if dataset.casefold() == "pemsbay" and max_paths < min_paths:
+        raise ValueError(
+            f"{config_path}: 'max_paths' must be >= 'min_paths' for PEMS-BAY"
+        )
     direction_policy = data.get("direction_policy", "directed")
     if not isinstance(direction_policy, str) or direction_policy not in {
         "directed",
@@ -158,6 +196,67 @@ def load_config(path: str | Path) -> PipelineConfig:
         not isinstance(seed, int) or isinstance(seed, bool)
     ):
         raise ValueError(f"{config_path}: 'seed' must be an integer or null")
+
+    raw_time_slots = data.get(
+        "time_slots",
+        DEFAULT_PEMS_BAY_TIME_SLOTS if dataset.casefold() == "pemsbay" else (),
+    )
+    if not isinstance(raw_time_slots, (list, tuple)):
+        raise ValueError(f"{config_path}: 'time_slots' must be a sequence")
+    time_slots: list[RoutingTimeWindow] = []
+    for index, item in enumerate(raw_time_slots):
+        if not isinstance(item, Mapping):
+            raise ValueError(
+                f"{config_path}: time_slots[{index}] must be a mapping"
+            )
+        name = item.get("name")
+        start_hour = item.get("start_hour")
+        end_hour = item.get("end_hour")
+        if (
+            not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(start_hour, int)
+            or isinstance(start_hour, bool)
+            or not isinstance(end_hour, int)
+            or isinstance(end_hour, bool)
+            or not 0 <= start_hour < end_hour <= 24
+        ):
+            raise ValueError(
+                f"{config_path}: time_slots[{index}] requires a name and "
+                "hours satisfying 0 <= start_hour < end_hour <= 24"
+            )
+        time_slots.append(
+            RoutingTimeWindow(name.strip(), start_hour, end_hour)
+        )
+    if len({slot.name for slot in time_slots}) != len(time_slots):
+        raise ValueError(f"{config_path}: time_slots names must be unique")
+    if time_slots:
+        ordered_slots = sorted(time_slots, key=lambda slot: slot.start_hour)
+        if (
+            ordered_slots[0].start_hour != 0
+            or ordered_slots[-1].end_hour != 24
+            or any(
+                previous.end_hour != current.start_hour
+                for previous, current in zip(
+                    ordered_slots, ordered_slots[1:]
+                )
+            )
+        ):
+            raise ValueError(
+                f"{config_path}: time_slots must partition the full day "
+                "from hour 0 through hour 24 without gaps or overlaps"
+            )
+
+    min_slot_coverage = data.get("min_slot_coverage", 0.5)
+    if (
+        not isinstance(min_slot_coverage, (int, float))
+        or isinstance(min_slot_coverage, bool)
+        or not math.isfinite(float(min_slot_coverage))
+        or not 0 < float(min_slot_coverage) <= 1
+    ):
+        raise ValueError(
+            f"{config_path}: 'min_slot_coverage' must be in (0, 1]"
+        )
 
     raw_routing_windows = data.get("routing_windows", ())
     if not isinstance(raw_routing_windows, (list, tuple)):
@@ -206,6 +305,14 @@ def load_config(path: str | Path) -> PipelineConfig:
         raise ValueError(
             f"{config_path}: 'sample_interval_minutes' must be a positive "
             "integer divisor of 60"
+        )
+    if any(
+        ((slot.end_hour - slot.start_hour) * 60) % sample_interval
+        for slot in time_slots
+    ):
+        raise ValueError(
+            f"{config_path}: each time_slots duration must be divisible by "
+            "'sample_interval_minutes'"
         )
     max_gap = data.get("max_speed_imputation_gap", 3)
     if not isinstance(max_gap, int) or isinstance(max_gap, bool) or max_gap < 0:
@@ -261,8 +368,12 @@ def load_config(path: str | Path) -> PipelineConfig:
         sensor_ids=tuple(raw_sensor_ids),
         n_sensors=n_sensors,
         seed_sensor=seed_sensor,
+        extra_edges=extra_edges,
+        min_paths=min_paths,
         max_paths=max_paths,
         direction_policy=direction_policy,
+        time_slots=tuple(time_slots),
+        min_slot_coverage=float(min_slot_coverage),
         routing_windows=tuple(routing_windows),
         sample_interval_minutes=sample_interval,
         max_speed_imputation_gap=max_gap,

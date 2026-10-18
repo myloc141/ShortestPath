@@ -1,0 +1,46 @@
+{
+  "workstream": "workstream05",
+  "model_name": "Neural_Network_MLP",
+  "MAE": 0.1019,
+  "RMSE": 0.3373,
+  "MSE": 0.1138,
+  "MAPE_percent": 9.68,
+  "n_obs": 3780,
+  "by_time_slot": {
+    "1": {
+      "MAE": 0.0358,
+      "RMSE": 0.0543,
+      "MSE": 0.0029,
+      "MAPE_percent": 7.37,
+      "n_obs": 756
+    },
+    "2": {
+      "MAE": 0.0767,
+      "RMSE": 0.1411,
+      "MSE": 0.0199,
+      "MAPE_percent": 9.45,
+      "n_obs": 756
+    },
+    "3": {
+      "MAE": 0.0918,
+      "RMSE": 0.1726,
+      "MSE": 0.0298,
+      "MAPE_percent": 10.34,
+      "n_obs": 756
+    },
+    "4": {
+      "MAE": 0.2575,
+      "RMSE": 0.7146,
+      "MSE": 0.5106,
+      "MAPE_percent": 13.17,
+      "n_obs": 756
+    },
+    "5": {
+      "MAE": 0.0477,
+      "RMSE": 0.075,
+      "MSE": 0.0056,
+      "MAPE_percent": 8.09,
+      "n_obs": 756
+    }
+  }
+}

@@ -6,9 +6,12 @@ import csv
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, TYPE_CHECKING
 
 from ..network.schema import Network
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
 
 
 _DISTANCE_TO_KM = {"km": 1.0, "m": 0.001, "mi": 1.609344}
@@ -38,18 +41,24 @@ class TrafficObservation:
     timestamp: str | None = None
     speed_mph: float | None = None
     is_imputed: bool = False
+    sample_count: int | None = None
+    coverage: float | None = None
 
 
 @dataclass(frozen=True)
 class SupervisedDataset:
     feature_names: tuple[str, ...]
-    features: tuple[tuple[float, ...], ...]
-    target: tuple[float, ...]
+    features: ArrayLike
+    target: ArrayLike
 
     def __post_init__(self) -> None:
         if len(self.features) != len(self.target):
             raise ValueError("Feature and target row counts differ")
-        if any(len(row) != len(self.feature_names) for row in self.features):
+        shape = getattr(self.features, "shape", None)
+        if shape is not None:
+            if len(shape) != 2 or shape[1] != len(self.feature_names):
+                raise ValueError("Feature matrix width does not match feature_names")
+        elif any(len(row) != len(self.feature_names) for row in self.features):
             raise ValueError("Feature row width does not match feature_names")
 
 
@@ -163,52 +172,46 @@ def load_supervised_dataset(
     features_csv: str | Path,
     target_csv: str | Path,
 ) -> SupervisedDataset:
-    """Read one numeric X/y split exported by the WS3 preprocessing pipeline."""
+    """Read numeric X/y as NumPy arrays to avoid per-value Python objects."""
+    import numpy as np
+    import pandas as pd
+
     feature_path = Path(features_csv)
     target_path = Path(target_csv)
+    feature_frame = pd.read_csv(feature_path, encoding="utf-8-sig")
+    feature_names = tuple(str(column) for column in feature_frame.columns)
+    if not feature_names:
+        raise ValueError(f"{feature_path}: missing feature header")
+    try:
+        features = feature_frame.to_numpy(dtype=np.float64, copy=False)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{feature_path}: all features must be numeric") from error
+    invalid_features = np.argwhere(~np.isfinite(features))
+    if invalid_features.size:
+        line_number = int(invalid_features[0, 0]) + 2
+        raise ValueError(f"{feature_path}:{line_number}: non-finite feature")
 
-    with feature_path.open("r", encoding="utf-8-sig", newline="") as file:
-        feature_reader = csv.DictReader(file)
-        feature_names = tuple(feature_reader.fieldnames or ())
-        if not feature_names:
-            raise ValueError(f"{feature_path}: missing feature header")
-        feature_rows: list[tuple[float, ...]] = []
-        for line_number, row in enumerate(feature_reader, start=2):
-            try:
-                values = tuple(float(row[name]) for name in feature_names)
-            except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"{feature_path}:{line_number}: all features must be numeric"
-                ) from exc
-            if any(not math.isfinite(value) for value in values):
-                raise ValueError(f"{feature_path}:{line_number}: non-finite feature")
-            feature_rows.append(values)
-
-    with target_path.open("r", encoding="utf-8-sig", newline="") as file:
-        target_reader = csv.DictReader(file)
-        target_columns = tuple(target_reader.fieldnames or ())
-        if len(target_columns) != 1:
-            raise ValueError(
-                f"{target_path}: expected exactly one target column, "
-                f"got {target_columns}"
-            )
-        target_name = target_columns[0]
-        targets: list[float] = []
-        for line_number, row in enumerate(target_reader, start=2):
-            try:
-                value = float(row[target_name])
-            except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"{target_path}:{line_number}: target must be numeric"
-                ) from exc
-            if not math.isfinite(value):
-                raise ValueError(f"{target_path}:{line_number}: non-finite target")
-            targets.append(value)
+    target_frame = pd.read_csv(target_path, encoding="utf-8-sig")
+    target_columns = tuple(target_frame.columns)
+    if len(target_columns) != 1:
+        raise ValueError(
+            f"{target_path}: expected exactly one target column, "
+            f"got {target_columns}"
+        )
+    try:
+        targets = target_frame.iloc[:, 0].to_numpy(dtype=np.float64, copy=False)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{target_path}: target must be numeric") from error
+    invalid_targets = np.flatnonzero(~np.isfinite(targets))
+    if invalid_targets.size:
+        raise ValueError(
+            f"{target_path}:{int(invalid_targets[0]) + 2}: non-finite target"
+        )
 
     return SupervisedDataset(
         feature_names=feature_names,
-        features=tuple(feature_rows),
-        target=tuple(targets),
+        features=features,
+        target=targets,
     )
 
 

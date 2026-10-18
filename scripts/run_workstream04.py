@@ -27,7 +27,6 @@ from src.models.baselines.linear_regression import (
 )
 from src.preprocess.observations import (
     TrafficObservation,
-    feature_rows_as_mappings,
     load_supervised_dataset,
     load_observations,
 )
@@ -115,14 +114,18 @@ def main() -> None:
     errors_output = stage_dir(args.dataset, "_errors", root)
     predictions_output.mkdir(parents=True, exist_ok=True)
     metrics_dir.mkdir(parents=True, exist_ok=True)
-    train_mappings = feature_rows_as_mappings(x_train)
-    test_mappings = feature_rows_as_mappings(x_test)
-    group_model = GroupMeanModel.fit(train_mappings, x_train.target)
+    group_model = GroupMeanModel.fit_encoded(
+        x_train.feature_names, x_train.features, x_train.target
+    )
     group_valid_predictions = tuple(
         item.value
-        for item in group_model.predict(feature_rows_as_mappings(x_valid))
+        for item in group_model.predict_encoded(
+            x_valid.feature_names, x_valid.features
+        )
     )
-    group_predictions = group_model.predict(test_mappings)
+    group_predictions = group_model.predict_encoded(
+        x_test.feature_names, x_test.features
+    )
     group_values = [item.value for item in group_predictions]
     write_frame(
         predictions_output / "pred_groupmean_valid_withkey.csv",

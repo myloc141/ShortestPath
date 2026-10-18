@@ -4,11 +4,14 @@ adjacency_path: data/raw_pems_bay/adj_mx_bay.pkl
 traffic_parquet: data/processed/pemsbay/traffic_speed_long.parquet
 # Để trống để adapter chọn tự động; nếu khai báo phải có 20–30 sensor ID.
 sensor_ids: []
-# Tự chọn 25 sensor liên thông; seed_sensor null dùng sensor bậc cao nhất.
+# Chọn 25 sensor liên thông bằng BFS; seed_sensor null dùng sensor bậc cao nhất.
 n_sensors: 25
 seed_sensor: null
-# Giới hạn số simple paths khi chọn và kiểm chứng tuyến.
-max_paths: 10000
+# Thử thêm 3 cạnh khép chu trình, tăng dần đến 9 nếu không tìm được endpoint phù hợp.
+extra_edges: 3
+# Chỉ chấp nhận cặp có số simple path trong khoảng này; bộ đếm dừng tại max_paths + 1.
+min_paths: 5
+max_paths: 2000
 # undirected hợp nhất cung nếu một trong hai hướng có cạnh; chọn directed để giữ cung gốc.
 direction_policy: undirected
 source: null
@@ -19,6 +22,26 @@ speed_unit: mph
 timezone: America/Los_Angeles
 sample_interval_minutes: 5
 max_speed_imputation_gap: 3
+# Retain edge/day/slot cells only when this share of valid or short-gap-imputed
+# 5-minute samples reaches the threshold.
+min_slot_coverage: 0.5
+# Non-overlapping full-day slots used by WS3 and routing.
+time_slots:
+  - name: night
+    start_hour: 0
+    end_hour: 6
+  - name: morning_peak
+    start_hour: 6
+    end_hour: 9
+  - name: midday
+    start_hour: 9
+    end_hour: 16
+  - name: evening_peak
+    start_hour: 16
+    end_hour: 19
+  - name: evening
+    start_hour: 19
+    end_hour: 24
 lag_steps: [1]
 train_fraction: 0.7
 valid_fraction: 0.15

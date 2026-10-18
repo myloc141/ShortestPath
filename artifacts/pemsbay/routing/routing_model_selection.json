@@ -1,0 +1,71 @@
+{
+  "metrics_on_validation": {
+    "GroupMean": {
+      "MAE": 0.0901,
+      "RMSE": 0.2563,
+      "MSE": 0.0657,
+      "MAPE_percent": 6.49
+    },
+    "LinearRegression": {
+      "MAE": 0.2223,
+      "RMSE": 0.4264,
+      "MSE": 0.1818,
+      "MAPE_percent": 37.58
+    },
+    "NeuralNet": {
+      "MAE": 0.1037,
+      "RMSE": 0.262,
+      "MSE": 0.0686,
+      "MAPE_percent": 9.99
+    }
+  },
+  "primary_baseline": "GroupMean",
+  "primary_baseline_note": "GroupMean is no worse on MAE and RMSE",
+  "nn_included_in_main_comparison": false,
+  "train_mean_travel_time_by_slot": {
+    "1": 1.1779099342047905,
+    "2": 1.3209811877393383,
+    "3": 1.2956045413448924,
+    "4": 1.6936674493607322,
+    "5": 1.1960228443923855
+  },
+  "main_slots": {
+    "peak": 4,
+    "offpeak": 1
+  },
+  "decision_source": "validation metrics only",
+  "validation_days": [
+    127,
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138,
+    139,
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153
+  ],
+  "test_metrics_used": false,
+  "routing_results_used": false,
+  "selected_prediction_models": [
+    "GroupMean"
+  ]
+}

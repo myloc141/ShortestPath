@@ -1,0 +1,13 @@
+﻿edge_id,node_u,node_v,distance_km,topology_matches
+edge_001,O,A,2.0,True
+edge_002,O,B,5.0,True
+edge_003,O,C,4.0,True
+edge_004,A,B,2.0,True
+edge_005,A,D,7.0,True
+edge_006,B,C,1.0,True
+edge_007,B,D,4.0,True
+edge_008,B,E,3.0,True
+edge_009,C,E,4.0,True
+edge_010,D,E,1.0,True
+edge_011,D,T,5.0,True
+edge_012,E,T,7.0,True

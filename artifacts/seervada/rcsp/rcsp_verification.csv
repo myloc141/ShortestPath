@@ -1,0 +1,6 @@
+﻿resource_limit,milp_status,milp_path,milp_distance,milp_resource,brute_force_status,brute_force_distance,n_paths_total,n_paths_feasible,solution_valid,cross_check_matches
+17,Infeasible,,,,Infeasible,,28,0,,True
+18,Optimal,O-B-E-D-T,14.0,18.0,Optimal,14.0,28,5,True,True
+19,Optimal,O-A-B-E-D-T,13.0,19.0,Optimal,13.0,28,10,True,True
+20,Optimal,O-A-B-D-T,13.0,20.0,Optimal,13.0,28,12,True,True
+,Optimal,O-A-B-D-T,13.0,20.0,Optimal,13.0,28,28,True,True

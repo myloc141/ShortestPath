@@ -1,9 +1,9 @@
-"""Build model data from the long Parquet produced by the raw PEMS-BAY stage.
+"""Build an auxiliary model-data branch from PEMS-BAY Parquet.
 
 Pipeline order: raw H5/PKL/CSV -> ``run_preprocess_pems_bay.py`` ->
-long-form Parquet and quality reports -> ``PemsBayAdapter.build_observations``
-for cleaned, edge-mapped five-minute observations -> hourly aggregation, lag
-construction, and chronological splitting in ``src/preprocess/dataset.py``.
+long-form Parquet and quality reports -> WS1 I1 network -> this optional
+branch's edge/day/time-slot observations and chronological splits. WS4–WS6
+read the I4 files produced by WS3 instead of this ``model_dataset`` output.
 """
 
 from __future__ import annotations

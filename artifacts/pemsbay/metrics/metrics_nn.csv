@@ -1,0 +1,7 @@
+time_slot,model,MAE,RMSE,MSE,MAPE_percent,n_obs
+all,Neural_Network_MLP,0.1019,0.3373,0.1138,9.68,3780
+1,Neural_Network_MLP,0.0358,0.0543,0.0029,7.37,756
+2,Neural_Network_MLP,0.0767,0.1411,0.0199,9.45,756
+3,Neural_Network_MLP,0.0918,0.1726,0.0298,10.34,756
+4,Neural_Network_MLP,0.2575,0.7146,0.5106,13.17,756
+5,Neural_Network_MLP,0.0477,0.075,0.0056,8.09,756

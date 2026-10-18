@@ -1,0 +1,13 @@
+﻿edge_id,u,v,distance,directed
+edge_001,O,A,2.0,False
+edge_002,O,B,5.0,False
+edge_003,O,C,4.0,False
+edge_004,A,B,2.0,False
+edge_005,A,D,7.0,False
+edge_006,B,C,1.0,False
+edge_007,B,D,4.0,False
+edge_008,B,E,3.0,False
+edge_009,C,E,4.0,False
+edge_010,D,E,1.0,False
+edge_011,D,T,5.0,False
+edge_012,E,T,7.0,False

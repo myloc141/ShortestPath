@@ -73,6 +73,10 @@ def main() -> None:
     metadata = {
         **prepared.pipeline_metadata,
         "source": config.observations_path or config.traffic_parquet,
+        "adapter_metadata": getattr(adapter, "metadata", {}),
+        "days_dropped_for_slot_coverage": getattr(
+            adapter, "metadata", {}
+        ).get("days_dropped_for_slot_coverage", 0),
     }
     (output / "preprocessing_pipeline.json").write_text(
         json.dumps(metadata, indent=2, ensure_ascii=False) + "\n",

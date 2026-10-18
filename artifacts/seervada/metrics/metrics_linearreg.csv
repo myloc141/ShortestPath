@@ -1,0 +1,7 @@
+time_slot,model,MAE,RMSE,MSE,MAPE_percent,n_obs
+all,LinearRegression,1.1851,1.5036,2.2609,21.13,180
+1,LinearRegression,0.9334,1.1737,1.3777,27.24,36
+2,LinearRegression,1.3413,1.6217,2.6298,19.86,36
+3,LinearRegression,1.0519,1.2771,1.631,17.59,36
+4,LinearRegression,1.2664,1.6823,2.8302,21.07,36
+5,LinearRegression,1.3325,1.6841,2.8361,19.92,36

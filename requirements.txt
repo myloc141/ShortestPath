@@ -1,0 +1,12 @@
+# Runtime dependencies for the data and modeling pipeline.
+h5py
+matplotlib
+numpy
+pandas
+pyarrow
+PyYAML
+scikit-learn
+tables
+
+# Required only by the RCSP workstream.
+pulp[cbc]==3.3.2

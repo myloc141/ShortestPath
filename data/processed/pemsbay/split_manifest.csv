@@ -1,0 +1,4 @@
+split,start_day,end_day,n_days,n_rows
+train,1,126,126,17010
+valid,127,153,27,3645
+test,154,181,28,3780

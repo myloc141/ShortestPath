@@ -5,14 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, Sequence
 
+from numpy.typing import ArrayLike
+
 
 class _Regressor(Protocol):
     loss_curve_: Sequence[float]
     validation_scores_: Sequence[float] | None
 
-    def fit(self, features: Sequence[Sequence[float]], targets: Sequence[float]) -> object: ...
+    def fit(self, features: ArrayLike, targets: ArrayLike) -> object: ...
 
-    def predict(self, features: Sequence[Sequence[float]]) -> Sequence[float]: ...
+    def predict(self, features: ArrayLike) -> ArrayLike: ...
 
 
 @dataclass
@@ -24,8 +26,8 @@ class NeuralNetworkModel:
     def fit(
         cls,
         feature_names: Sequence[str],
-        features: Sequence[Sequence[float]],
-        targets: Sequence[float],
+        features: ArrayLike,
+        targets: ArrayLike,
         *,
         hidden_layer_sizes: tuple[int, ...] = (64, 32),
         max_iter: int = 500,
@@ -33,10 +35,16 @@ class NeuralNetworkModel:
         n_iter_no_change: int = 10,
         random_state: int = 42,
     ) -> "NeuralNetworkModel":
-        if len(features) != len(targets) or not targets:
+        if len(features) != len(targets) or len(targets) == 0:
             raise ValueError("Training features and targets must be non-empty and aligned")
-        if any(len(row) != len(feature_names) for row in features):
-            raise ValueError("Training row width does not match feature_names")
+        import numpy as np
+
+        feature_matrix = np.asarray(features, dtype=float)
+        target_values = np.asarray(targets, dtype=float)
+        if feature_matrix.ndim != 2 or feature_matrix.shape[1] != len(feature_names):
+            raise ValueError("Training matrix width does not match feature_names")
+        if not np.isfinite(feature_matrix).all() or not np.isfinite(target_values).all():
+            raise ValueError("Training features and targets must be finite")
         if not 0 < validation_fraction < 1:
             raise ValueError("validation_fraction must be between 0 and 1")
 
@@ -55,24 +63,21 @@ class NeuralNetworkModel:
             n_iter_no_change=n_iter_no_change,
             random_state=random_state,
         )
-        estimator.fit(
-            [[float(value) for value in row] for row in features],
-            [float(value) for value in targets],
-        )
+        estimator.fit(feature_matrix, target_values)
         return cls(feature_names=tuple(feature_names), estimator=estimator)
 
     def predict(
         self,
         feature_names: Sequence[str],
-        features: Sequence[Sequence[float]],
+        features: ArrayLike,
     ) -> tuple[float, ...]:
         if tuple(feature_names) != self.feature_names:
             raise ValueError("Prediction feature order does not match fitted model")
-        if any(len(row) != len(self.feature_names) for row in features):
-            raise ValueError("Prediction row width does not match feature_names")
-        return tuple(
-            float(value)
-            for value in self.estimator.predict(
-                [[float(item) for item in row] for row in features]
-            )
-        )
+        import numpy as np
+
+        feature_matrix = np.asarray(features, dtype=float)
+        if feature_matrix.ndim != 2 or feature_matrix.shape[1] != len(self.feature_names):
+            raise ValueError("Prediction matrix width does not match feature_names")
+        if not np.isfinite(feature_matrix).all():
+            raise ValueError("Prediction features must be finite")
+        return tuple(float(value) for value in self.estimator.predict(feature_matrix))

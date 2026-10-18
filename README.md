@@ -4,6 +4,12 @@ Pipeline cho Seervada và PEMS-BAY. Các phép biến đổi dữ liệu và h�
 workstream nằm trong `src/`; script chỉ điều phối tham số, gọi API và lưu kết quả.
 Chạy từ thư mục gốc repository.
 
+Cài dependencies từ file chuẩn:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
 ## Sơ đồ phụ thuộc
 
 ```text
@@ -51,27 +57,39 @@ cảnh báo; file không bị di chuyển.
 | WS5 | WS1 `network/` I1, WS3 `data/processed/<ds>/` | `artifacts/<ds>/predictions/` (I5), `artifacts/<ds>/metrics/` (I6) |
 | WS6 | WS1 I1, WS2 I3, WS3 I4, WS4/5 I5 | `artifacts/<ds>/routing/` (I7/I8); contract errors ở `artifacts/<ds>/_errors/` |
 | make_report | WS1 paths, WS2 RCSP, WS4/5 metrics, WS6 routing | `docs/report/<ds>_report.md` |
-| build_dataset | WS1 I1 network và PEMS-BAY `traffic_speed_long.parquet` trong `data/processed/pemsbay/` | `data/processed/pemsbay/model_dataset/` |
+| build_dataset (nhánh phụ) | WS1 I1 và PEMS-BAY `traffic_speed_long.parquet` | `data/processed/pemsbay/model_dataset/` (không được WS4–WS6 dùng) |
 
 Raw PEMS-BAY Parquet và quality report được ghi vào
-`data/processed/pemsbay/`; `build_dataset.py` ghi dataset hourly vào
-`data/processed/pemsbay/model_dataset/` để không ghi đè I4 do WS3 tạo.
-Ví dụ:
+`data/processed/pemsbay/`. Luồng chính chạy WS1 rồi WS3; WS3 gọi adapter để
+tổng hợp thành I4 trước khi chia ngày train/valid/test. WS4–WS6 chỉ đọc các
+split I4 này. `build_dataset.py` là nhánh phụ tạo dữ liệu model riêng trong
+`data/processed/pemsbay/model_dataset/`, không phải prerequisite của WS4–WS6.
+
+Ví dụ luồng chính:
 
 ```powershell
 python scripts\run_workstream01.py --dataset pemsbay --artifacts-root .
-python scripts\build_dataset.py --dataset pemsbay --artifacts-root .
+python scripts\run_workstream03.py --dataset pemsbay --artifacts-root .
+python scripts\run_workstream04.py --dataset pemsbay --artifacts-root .
 ```
 
-PEMS-BAY để `sensor_ids`, `source` và `target` trống theo mặc định. Adapter tự
-chọn `n_sensors` cảm biến liên thông bằng BFS xác định từ sensor bậc cao nhất
-có thành phần đủ lớn (hoặc `seed_sensor`), loại sensor không có tốc độ hợp lệ;
-sau đó chọn cặp endpoint có
-khoảng cách shortest-path theo số bước lớn nhất, ưu tiên nhiều simple path hơn,
-theo thứ tự từ điển để phá hòa, trong giới hạn `max_paths`. Danh sách cảm biến,
-endpoint và tiêu chí được giữ trong metadata của adapter. Có thể cung cấp danh
-sách/cặp tường minh qua YAML. `direction_policy` chọn giữ cung adjacency
-(`directed`) hoặc hợp nhất thành cạnh vô hướng (`undirected`).
+PEMS-BAY để `sensor_ids`, `source` và `target` trống theo mặc định. Adapter
+chọn `n_sensors` cảm biến liên thông bằng BFS từ sensor bậc cao nhất (thử
+các seed kế tiếp nếu component không đủ; `seed_sensor` đã cấu hình sẽ cố định
+seed), duyệt neighbor theo ID; cảm biến thiếu tọa độ, adjacency hoặc tốc độ
+hợp lệ bị loại. Cây BFS được bổ sung từ `extra_edges=3`
+đến tối đa 9 cạnh ngoài cây, ưu tiên chu trình có tổng chiều dài Haversine
+ngắn nhất, rồi tie-break theo ID. Với mỗi topology, chỉ chọn cặp source/target
+có số simple path trong `[min_paths, max_paths]`; bộ đếm dừng khi đạt
+`max_paths + 1`, không tự tăng `max_paths`. Cặp được ưu tiên theo khoảng cách
+shortest-path Haversine lớn nhất, rồi số path gần khoảng 50–500
+(ưu tiên gần 200) và ID.
+Danh sách sensor, số cạnh/path, endpoint và tiêu chí được lưu trong metadata
+adapter. Có thể cấu hình danh sách/cặp tường minh qua YAML.
+`direction_policy` chọn giữ cung adjacency (`directed`) hoặc hợp nhất thành
+cạnh vô hướng (`undirected`). Các khung giờ mặc định là night (00–06),
+morning_peak (06–09), midday (09–16), evening_peak (16–19), evening (19–24);
+có thể thay thế trong `configs/pemsbay.yaml`.
 
 Luồng PEMS-BAY thống nhất:
 
@@ -81,9 +99,11 @@ data/raw_pems_bay (H5/PKL/CSV)
   -> src/adapters/pemsbay_prepare.py
   -> traffic_speed_long.parquet + báo cáo chất lượng
   -> WS1 publishes I1 network
-  -> scripts/build_dataset.py
-       -> PemsBayAdapter.build_observations (Parquet + I1 -> sample 5 phút theo cạnh)
-       -> src/preprocess/dataset.py (hourly, lag, split; cleaner dùng chung)
+  -> WS3 PemsBayAdapter.build_observations
+       -> clean 5-minute speeds, enforce min_slot_coverage
+       -> average travel_time by (edge_id, day, time_slot)
+       -> chronological I4 train/valid/test splits
+  -> WS4–WS6 read the aggregated I4 splits
 ```
 
 Parquet đầu vào adapter yêu cầu `time_index`, `sensor_id`, `speed`; `timestamp`
@@ -91,14 +111,17 @@ là tùy chọn. Preprocess raw hiện xuất đủ bốn cột, trong đó `tim
 null.
 `build_observations()` gán tốc độ sensor tại endpoint `edge.v` cho cạnh (với
 cạnh directed đây là sensor downstream; cạnh undirected dùng endpoint `v`
-theo thứ tự node ổn định), làm sạch và trả observations 5 phút đã chuẩn hóa.
-`build_dataset.py` chuyển các observations đó sang hàm tổng hợp giờ, tạo lag
-và split trong module preprocess dùng chung.
+theo thứ tự node ổn định), làm sạch và gộp thành travel-time trung bình theo
+cạnh, ngày và `time_slots`. Mỗi cell cần tỷ lệ sample 5 phút hợp lệ ít nhất
+`min_slot_coverage` (mặc định 0.5); ngày chỉ được giữ nếu mọi cạnh đạt ngưỡng
+ở mọi khung giờ. Nội suy chỉ áp dụng cho gap nội bộ không dài hơn
+`max_speed_imputation_gap`. Số ngày bị loại vì thiếu coverage được ghi trong
+`preprocessing_pipeline.json` cùng metadata adapter.
 Tốc độ được hiểu mặc định là mph; travel time (phút) dùng
 `distance_km / (speed_mph * 1.609344) * 60`. Chiều dài Haversine là xấp xỉ
 đường chim bay, không phải chiều dài đường thực tế. `build_dataset.py` chỉ đọc
-Parquet đã preprocess; hãy chạy launcher trước. RCSP vẫn chỉ chạy khi dataset
-có `rcsp_path` tương ứng được cấu hình.
+Parquet đã preprocess và tạo nhánh phụ `model_dataset`; WS4–WS6 không đọc nhánh
+này. RCSP vẫn chỉ chạy khi dataset có `rcsp_path` tương ứng được cấu hình.
 
 Launcher nhận `--input-dir`, `--artifacts-root`, và `--log-level`; mặc định
 lần lượt là `data/raw_pems_bay`, gốc repository, và `INFO`. `--output-dir` là

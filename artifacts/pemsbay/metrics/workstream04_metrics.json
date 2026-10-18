@@ -1,0 +1,94 @@
+[
+  {
+    "workstream": "workstream04",
+    "model_name": "GroupMean",
+    "MAE": 0.0876,
+    "RMSE": 0.3356,
+    "MSE": 0.1126,
+    "MAPE_percent": 6.13,
+    "n_obs": "3780",
+    "by_time_slot": {
+      "1": {
+        "MAE": 0.0191,
+        "RMSE": 0.0391,
+        "MSE": 0.0015,
+        "MAPE_percent": 2.05,
+        "n_obs": 756
+      },
+      "2": {
+        "MAE": 0.0615,
+        "RMSE": 0.1318,
+        "MSE": 0.0174,
+        "MAPE_percent": 6.39,
+        "n_obs": 756
+      },
+      "3": {
+        "MAE": 0.083,
+        "RMSE": 0.1701,
+        "MSE": 0.0289,
+        "MAPE_percent": 7.81,
+        "n_obs": 756
+      },
+      "4": {
+        "MAE": 0.2376,
+        "RMSE": 0.7144,
+        "MSE": 0.5104,
+        "MAPE_percent": 10.78,
+        "n_obs": 756
+      },
+      "5": {
+        "MAE": 0.0369,
+        "RMSE": 0.0693,
+        "MSE": 0.0048,
+        "MAPE_percent": 3.64,
+        "n_obs": 756
+      }
+    }
+  },
+  {
+    "workstream": "workstream04",
+    "model_name": "LinearRegression",
+    "MAE": 0.2169,
+    "RMSE": 0.4986,
+    "MSE": 0.2486,
+    "MAPE_percent": 37.76,
+    "n_obs": "3780",
+    "by_time_slot": {
+      "1": {
+        "MAE": 0.1371,
+        "RMSE": 0.1762,
+        "MSE": 0.0311,
+        "MAPE_percent": 36.75,
+        "n_obs": 756
+      },
+      "2": {
+        "MAE": 0.1376,
+        "RMSE": 0.1991,
+        "MSE": 0.0396,
+        "MAPE_percent": 19.29,
+        "n_obs": 756
+      },
+      "3": {
+        "MAE": 0.117,
+        "RMSE": 0.1803,
+        "MSE": 0.0325,
+        "MAPE_percent": 18.66,
+        "n_obs": 756
+      },
+      "4": {
+        "MAE": 0.5581,
+        "RMSE": 1.0526,
+        "MSE": 1.108,
+        "MAPE_percent": 81.65,
+        "n_obs": 756
+      },
+      "5": {
+        "MAE": 0.1347,
+        "RMSE": 0.1779,
+        "MSE": 0.0317,
+        "MAPE_percent": 32.43,
+        "n_obs": 756
+      }
+    }
+  }
+]

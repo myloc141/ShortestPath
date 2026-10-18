@@ -1,2 +1,0 @@
-python -m pip uninstall pulp -y
-python -m pip install "pulp[cbc]==3.3.2"

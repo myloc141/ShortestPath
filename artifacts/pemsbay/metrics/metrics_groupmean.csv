@@ -1,0 +1,7 @@
+time_slot,model,MAE,RMSE,MSE,MAPE_percent,n_obs
+all,GroupMean,0.0876,0.3356,0.1126,6.13,3780
+1,GroupMean,0.0191,0.0391,0.0015,2.05,756
+2,GroupMean,0.0615,0.1318,0.0174,6.39,756
+3,GroupMean,0.083,0.1701,0.0289,7.81,756
+4,GroupMean,0.2376,0.7144,0.5104,10.78,756
+5,GroupMean,0.0369,0.0693,0.0048,3.64,756
