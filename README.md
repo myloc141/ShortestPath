@@ -71,6 +71,8 @@ Ví dụ luồng chính:
 python scripts\run_workstream01.py --dataset pemsbay --artifacts-root .
 python scripts\run_workstream03.py --dataset pemsbay --artifacts-root .
 python scripts\run_workstream04.py --dataset pemsbay --artifacts-root .
+python scripts\run_workstream05.py --dataset pemsbay --artifacts-root .
+python scripts\run_workstream06.py --dataset pemsbay --artifacts-root .
 ```
 
 PEMS-BAY để `sensor_ids`, `source` và `target` trống theo mặc định. Adapter
