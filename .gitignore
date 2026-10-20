@@ -17,6 +17,7 @@ topics_extracted.txt
 sheet_export.csv
 *.tmp
 *.zip
+~$*
 *_AUDIT_BUNDLE*
 *_Audit_Package*
 AUDIT_BEFORE_CHANGES.md
