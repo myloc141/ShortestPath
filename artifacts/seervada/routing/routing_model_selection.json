@@ -33,6 +33,7 @@
     "peak": 4,
     "offpeak": 1
   },
+  "nn_passed_validation_rule": true,
   "decision_source": "validation metrics only",
   "validation_days": [
     25,
