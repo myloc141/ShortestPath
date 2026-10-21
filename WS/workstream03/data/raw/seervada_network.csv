@@ -1,0 +1,13 @@
+node_u,node_v,distance,directed
+O,A,2,False
+O,B,5,False
+O,C,4,False
+A,B,2,False
+A,D,7,False
+B,C,1,False
+B,D,4,False
+B,E,3,False
+C,E,4,False
+D,E,1,False
+D,T,5,False
+E,T,7,False
