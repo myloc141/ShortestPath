@@ -368,7 +368,7 @@ def clean_speed_series(
 
     for _, group in data.groupby(list(group_columns), sort=False, dropna=False):
         positions = group.index.to_list()
-        values = data.loc[positions, "speed_mph"].to_numpy(dtype=float, copy=True)
+        values = data.loc[positions, "speed_mph"].to_numpy(dtype=float)
         timestamps = data.loc[positions, "timestamp"].tolist()
         cursor = 0
         while cursor < len(values):
