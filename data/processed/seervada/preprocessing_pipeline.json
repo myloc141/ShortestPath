@@ -106,5 +106,7 @@
   "valid_rows": 180,
   "test_rows": 180,
   "target": "travel_time",
-  "source": "data/processed_seervada/seervada_travel_time_SIMULATED.csv"
+  "source": "data/processed_seervada/seervada_travel_time_SIMULATED.csv",
+  "adapter_metadata": {},
+  "days_dropped_for_slot_coverage": 0
 }

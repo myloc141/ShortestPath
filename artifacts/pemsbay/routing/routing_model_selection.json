@@ -21,7 +21,7 @@
   },
   "primary_baseline": "GroupMean",
   "primary_baseline_note": "GroupMean is no worse on MAE and RMSE",
-  "nn_included_in_main_comparison": false,
+  "nn_included_in_main_comparison": true,
   "train_mean_travel_time_by_slot": {
     "1": 1.1779099342047905,
     "2": 1.3209811877393383,
@@ -33,6 +33,7 @@
     "peak": 4,
     "offpeak": 1
   },
+  "nn_passed_validation_rule": false,
   "decision_source": "validation metrics only",
   "validation_days": [
     127,
@@ -66,6 +67,7 @@
   "test_metrics_used": false,
   "routing_results_used": false,
   "selected_prediction_models": [
-    "GroupMean"
+    "GroupMean",
+    "NeuralNet"
   ]
 }

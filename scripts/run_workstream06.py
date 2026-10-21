@@ -221,13 +221,16 @@ def main() -> None:
         train_slot_means,
     )
     primary_baseline = str(selection["primary_baseline"])
-    selected_prediction_names = [primary_baseline]
-    neural_network_included = bool(selection["nn_included_in_main_comparison"])
-    if neural_network_included:
-        selected_prediction_names.append("NeuralNet")
+    selected_prediction_names = [primary_baseline, "NeuralNet"]
+    nn_passed_validation_rule = bool(
+        selection["nn_included_in_main_comparison"]
+    )
+    neural_network_included = True
 
     selection_record = {
         **selection,
+        "nn_passed_validation_rule": nn_passed_validation_rule,
+        "nn_included_in_main_comparison": neural_network_included,
         "decision_source": "validation metrics only",
         "validation_days": sorted({item.day for item in valid}),
         "test_metrics_used": False,
@@ -467,7 +470,8 @@ def main() -> None:
     (output / "precommitted_rules.md").write_text(
         "# Routing comparison rules\n\n"
         f"- `{primary_baseline}` is the primary baseline selected from validation metrics.\n"
-        f"- Neural Network included: {neural_network_included}.\n"
+        "- Neural Network is always included in the routing comparison; "
+        f"it passed the validation improvement rule: {nn_passed_validation_rule}.\n"
         "- The decision is stored in `routing_model_selection.json` before routing.\n"
         "- Select routes using training-derived weights or model predictions only.\n"
         "- Use test actual travel times only to score routes; predicted times are "

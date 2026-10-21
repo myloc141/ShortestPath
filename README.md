@@ -175,138 +175,200 @@ truyền mỗi nghiệm tối ưu qua `RouteReference`. Mỗi route phải nối
 với target và chỉ đi trên cạnh có trong network. Actual test travel time dùng
 để tính `actual_time` và regret so với Oracle.
 
-## Dữ liệu, network và tiền xử lý
+## III.1. Dữ liệu nghiên cứu
 
-### 1. Tổng quan dữ liệu
+### III.1.1. Dữ liệu mạng Seervada và dữ liệu mô phỏng
 
-| Thuộc tính | Seervada | PEMS-BAY |
-|---|---|---|
-| Loại dữ liệu | Network mẫu Seervada Park; 7 nút (`O, A, B, C, D, E, T`), 12 cạnh. Travel time là dữ liệu mô phỏng, không phải đo giao thông thực. | Dữ liệu tốc độ giao thông từ 325 cảm biến. Network con hiện tại có 25 cảm biến và 27 cạnh. |
-| Nguồn | Network: `data/processed_seervada/seervada_network.csv`; observations mô phỏng: `data/processed_seervada/seervada_travel_time_SIMULATED.csv`. | Raw files trong `data/raw_pems_bay/`: `pems-bay.h5`, `graph_sensor_locations_bay.csv`, `adj_mx_bay.pkl`. Định dạng và tên file theo [DCRNN](https://github.com/liyaguang/DCRNN), nơi công bố PEMS-BAY. |
-| Khoảng thời gian | 30 ngày đánh số 1–30; dữ liệu mô phỏng không có ngày lịch. | 2017-01-01 đến 2017-06-30 theo timestamp trong HDF5, tổng cộng 181 ngày lịch. |
-| Tần suất quan sát | Đã tổng hợp thành 5 slot mỗi ngày; không phải chuỗi đo theo chu kỳ cố định. | Danh nghĩa 5 phút; kiểm tra HDF5 cho thấy một khoảng timestamp dài 65 phút, nên chuỗi không hoàn toàn đều. |
-| Số quan sát sau xử lý | 1.800 dòng (30 ngày × 12 cạnh × 5 slot). | 24.435 dòng ở I4 sau tổng hợp (181 ngày × 27 cạnh × 5 slot); đây là số dòng edge/day/slot, không phải số mẫu tốc độ raw. |
-| Đơn vị | Khoảng cách km; nhãn `travel_time` phút. | Tốc độ mph; khoảng cách Haversine km; nhãn `travel_time` phút. |
+#### III.1.1.1. Tổng quan nguồn dữ liệu và cấu trúc ba tệp
 
-Các số dòng và số ngày sau xử lý khớp với
-[`data/processed/seervada/split_manifest.csv`](data/processed/seervada/split_manifest.csv)
-và
-[`data/processed/pemsbay/split_manifest.csv`](data/processed/pemsbay/split_manifest.csv).
-File `data/processed/pemsbay/data_quality_report.json` hiện không chứa thống
-kê đầu vào (các trường để trống/`unavailable`); do đó không dùng file này để
-khẳng định số mẫu thiếu hay số mẫu được nội suy. Kiểm tra trực tiếp raw HDF5
-ghi nhận 52.116 timestamp, 325 cột cảm biến, không có NaN, có 521 giá trị tốc
-độ bằng 0 và không có giá trị âm. Đây là thống kê raw, không phải số lỗi sau
-tiền xử lý.
+Seervada là mạng mẫu gồm 7 nút (`O, A, B, C, D, E, T`) và 12 cạnh. Bộ dữ liệu
+nghiên cứu được lưu thành ba CSV theo các mục đích khác nhau:
 
-### 2. Dựng network
+| Tệp | Nội dung |
+|---|---|
+| `data/processed_seervada/seervada_network.csv` | Danh sách cạnh với hai đầu nút, khoảng cách (km) và cờ hướng cạnh (`directed`). |
+| `data/processed_seervada/seervada_rcsp_teaching.csv` | Danh sách cạnh, khoảng cách, thời gian tài nguyên (`time`, phút) và cờ hướng cạnh; 12 dòng cạnh. |
+| `data/processed_seervada/seervada_travel_time_SIMULATED.csv` | Travel time mô phỏng theo cạnh, ngày và time slot; có khóa thời gian và thông tin cạnh để dùng làm dữ liệu dự báo. |
 
-Cả hai adapter chuyển dữ liệu sang schema network chuẩn (nodes, edges, thuộc
-tính cạnh và đơn vị), sau đó tạo adjacency list cho thuật toán đồ thị.
-Seervada đọc 12 cạnh trực tiếp từ CSV; PEMS-BAY kết hợp tọa độ cảm biến,
-adjacency matrix và traffic speed đã chuẩn hóa để dựng network con.
-Kiểm tra network gồm ID nút/cạnh, cạnh trùng, self-loop, khoảng cách hữu hạn
-và dương, đơn vị khoảng cách, tính liên thông; khi có endpoint, kiểm tra thêm
-đường đi từ source tới target.
+#### III.1.1.2. Vai trò của từng tệp trong bài toán nghiên cứu
 
-Cấu hình PEMS-BAY hiện để `sensor_ids`, `source` và `target` trống, đồng thời
-đặt `n_sensors: 25`; adapter chọn tập cảm biến đủ điều kiện bằng BFS để tạo
-network liên thông. Năm ID `400479, 400045, 404759, 400122, 400971` được nêu
-trong đề xuất đều nằm trong network hiện tại, nhưng không phải toàn bộ tập:
-25 ID thực tế được ghi trong `data/processed/pemsbay/preprocessing_pipeline.json`.
-Không nên mô tả thí nghiệm đang chạy là network chỉ gồm 5 cảm biến. Khi không
-cấu hình endpoint, adapter chọn cặp có đường đi ngắn nhất Haversine dài nhất
-trong số các cặp có từ 5 đến 2.000 simple paths. Kết quả hiện tại là
-`400479 → 400971` (7 simple paths); đây là lựa chọn theo tiêu chí của adapter,
-không phải một cặp được cố định trong YAML.
+`seervada_network.csv` là đầu vào network cho adapter Seervada: tập nút được
+suy ra từ hai đầu cạnh, cạnh được chuyển sang schema chuẩn rồi thành
+adjacency list. Network này được dùng trong các phép tìm đường; cấu hình
+hiện tại đặt source–target là `O → T`.
 
-Khoảng cách PEMS-BAY được tính bằng Haversine từ tọa độ cảm biến, tức xấp xỉ
-đường chim bay chứ không phải chiều dài đường thực tế. Kết quả routing dựa
-trên trọng số khoảng cách này cần được diễn giải với hạn chế đó.
+`seervada_rcsp_teaching.csv` cung cấp giá trị tài nguyên `time` trên từng
+cạnh để tạo bài toán RCSP và được đối chiếu với topology, hướng cạnh, khoảng
+cách của network. Các giới hạn tài nguyên là tham số của bài toán, không phải
+cột trong CSV; cấu hình `configs/seervada.yaml` hiện để `time_limits` và
+`slots` rỗng.
 
-### 3. Tiền xử lý
+`seervada_travel_time_SIMULATED.csv` cung cấp nhãn travel time theo ngày/slot
+cho các workstream tiền xử lý, huấn luyện và đánh giá mô hình dự báo. Adapter
+kiểm tra các khóa quan sát, đơn vị, cạnh và tính nhất quán khoảng cách với
+network.
 
-- **PEMS-BAY raw:** `scripts/run_preprocess_pems_bay.py` gọi
-  `pemsbay_prepare.py` để xuất tốc độ dạng long-form Parquet cùng báo cáo
-  chất lượng; bước này giữ giá trị thiếu, không tự nội suy.
-- **Làm sạch tốc độ:** giá trị không phải số, không hữu hạn hoặc `<= 0` được
-  xem là thiếu. Chỉ nội suy tuyến tính gap nội bộ tối đa 3 mẫu 5 phút (15
-  phút), khi hai đầu gap đúng cadence; không ngoại suy đầu/cuối chuỗi và không
-  lấp gap dài hoặc có timestamp bất thường. Không có ngưỡng trên để cắt tốc độ
-  cao. Với cấu hình hiện tại, mỗi cạnh nhận tốc độ cảm biến ở endpoint `v`.
-- **Tính travel time:** `distance_km / (speed_mph × 1.609344) × 60`, kết quả
-  là phút. Sau đó lấy trung bình travel time trong từng (cạnh, ngày, slot);
-  không lấy nghịch đảo tốc độ trung bình để tính nhãn.
-- **Kiểm tra coverage:** mỗi ô cạnh/ngày/slot phải có ít nhất 50% mẫu 5 phút
-  hợp lệ hoặc đã nội suy. Một ngày chỉ được giữ nếu mọi cạnh đều đạt ngưỡng ở
-  cả 5 slot. Metadata pipeline ghi nhận 181 ngày được giữ, 0 ngày bị loại do
-  coverage.
-- **Seervada:** dùng CSV travel time mô phỏng đã tổng hợp sẵn theo cạnh,
-  ngày và slot; adapter kiểm tra khóa, đơn vị, cạnh và khoảng cách so với
-  network.
+#### III.1.1.3. Đặc điểm và giới hạn của dữ liệu mô phỏng
 
-### 4. Định nghĩa time slot
+Dữ liệu mô phỏng có 30 ngày đánh số, không có ngày lịch, 5 time slot và
+1.800 dòng (30 ngày × 12 cạnh × 5 slot). Các slot lần lượt là 06:00–08:00,
+08:00–10:00, 11:30–13:30, 16:30–18:30 và 19:30–21:30. Chia theo thứ tự ngày
+với tỷ lệ train/validation/test 80%/10%/10%: train 24 ngày (1.440 dòng),
+validation 3 ngày (180 dòng), test ngày 28–30 (180 dòng).
 
-Các khoảng giờ dùng dạng `[bắt đầu, kết thúc)` theo timezone của cấu hình;
-PEMS-BAY dùng `America/Los_Angeles`.
+Vì đây là network nhỏ và travel time mô phỏng, thí nghiệm Seervada chủ yếu
+giúp kiểm tra cách vận hành của phương pháp trong môi trường có cấu trúc rõ
+ràng. Kết quả không phải bằng chứng về độ chính xác trên giao thông thực tế;
+test chỉ gồm 3 ngày nên so sánh mô hình cũng có độ tin cậy hạn chế.
 
-| Dataset | Slot | Khoảng giờ |
-|---|---|---|
-| Seervada | 1 | 06:00–08:00 |
-| Seervada | 2 | 08:00–10:00 |
-| Seervada | 3 | 11:30–13:30 |
-| Seervada | 4 | 16:30–18:30 |
-| Seervada | 5 | 19:30–21:30 |
-| PEMS-BAY | `night` | 00:00–06:00 |
-| PEMS-BAY | `morning_peak` | 06:00–09:00 |
-| PEMS-BAY | `midday` | 09:00–16:00 |
-| PEMS-BAY | `evening_peak` | 16:00–19:00 |
-| PEMS-BAY | `evening` | 19:00–24:00 |
+### III.1.2. Dữ liệu giao thông thực tế PeMS-Bay
 
-### 5. Chia tập dữ liệu
+#### III.1.2.1. Nguồn gốc và tổng quan ba tệp dữ liệu
 
-Hai dataset được chia theo thứ tự ngày, không shuffle ngẫu nhiên. Với chuỗi
-thời gian, chia ngẫu nhiên có thể đưa thông tin từ tương lai vào tập train.
+PeMS-Bay là dữ liệu tốc độ giao thông khu vực Bay Area được sử dụng trong
+công trình DCRNN. BibTeX:
 
-| Dataset | Train | Validation | Test |
-|---|---:|---:|---:|
-| Seervada | 80%: 24 ngày, 1.440 dòng | 10%: 3 ngày, 180 dòng | 10%: 3 ngày (ngày 28–30), 180 dòng |
-| PEMS-BAY | 70%: 126 ngày, 17.010 dòng | 15%: 27 ngày, 3.645 dòng | 15%: 28 ngày, 3.780 dòng |
+```bibtex
+@inproceedings{li2018dcrnn_traffic,
+  title={Diffusion Convolutional Recurrent Neural Network: Data-Driven Traffic Forecasting},
+  author={Li, Yaguang and Yu, Rose and Shahabi, Cyrus and Liu, Yan},
+  booktitle={International Conference on Learning Representations (ICLR '18)},
+  year={2018}
+}
+```
 
-Validation được dùng để chọn mô hình/slot; test dành cho đánh giá cuối cùng,
-không dùng để chọn mô hình. Category vocabulary và thống kê chuẩn hóa khoảng
-cách (mean/std) chỉ được fit trên train; không tính thống kê từ validation
-hoặc test.
+Ba nguồn dữ liệu được công bố cùng dự án
+[DCRNN](https://github.com/liyaguang/DCRNN):
 
-### 6. Đặc trưng và nhãn
+| Tệp | Cấu trúc và vai trò |
+|---|---|
+| [`pems-bay.h5`](https://drive.google.com/open?id=10FOTa6HXPqX8PfWRoRwcFnW9BrNZEIX) ([Baidu Yun mirror](https://pan.baidu.com/s/14Yy9isAIZYdU__OYEQGa_g)) | HDF5 chứa DataFrame tốc độ dạng wide: hàng là timestamp, cột là sensor ID. |
+| [`graph_sensor_locations_bay.csv`](https://github.com/liyaguang/DCRNN/blob/master/data/sensor_graph/graph_sensor_locations_bay.csv) | CSV ánh xạ sensor ID tới latitude/longitude. |
+| [`adj_mx_bay.pkl`](https://github.com/liyaguang/DCRNN/blob/master/data/sensor_graph/adj_mx_bay.pkl) | Pickle chứa danh sách sensor ID, index map và adjacency matrix vuông; biểu diễn kết nối giữa cảm biến. |
 
-Nhãn của cả hai dataset là `travel_time` (phút). Đặc trưng gồm khoảng cách
-`distance`, cờ `is_weekend`, và one-hot encoding cho `edge_id`, `time_slot`,
-`day_of_week`, như được lưu trong `preprocessing_pipeline.json`. `distance`
-được chuẩn hóa z-score bằng mean/std của train; các cờ và biến one-hot là
-0/1. Không chuẩn hóa nhãn.
+Bản HDF5 trong repo có 52.116 timestamp và 325 cảm biến, từ 2017-01-01 đến
+2017-06-30 (181 ngày). Cadence danh nghĩa là 5 phút; kiểm tra index thấy một
+khoảng dài 65 phút. Đây là thống kê kiểm tra trực tiếp raw HDF5. Quality
+report hiện lưu trong repo chưa có thống kê đầu vào nên không dùng report đó
+để khẳng định số mẫu được nội suy hoặc loại bỏ.
 
-Group Mean fit các trung bình theo thứ tự chi tiết đến tổng quát:
-(edge, slot, day-of-week), (edge, slot), (edge), rồi fallback về trung bình
-toàn cục; tất cả các trung bình chỉ fit trên train. Linear Regression dùng
-các đặc trưng đã mã hóa và bỏ các cột baseline được cấu hình trong model.
-MLP dùng cùng bộ đặc trưng đầu vào, không có bước chuẩn hóa riêng ngoài việc
-chuẩn hóa `distance` ở pipeline.
+#### III.1.2.2. Đặc điểm dữ liệu tốc độ giao thông và mạng cảm biến
 
-### 7. Hạn chế dữ liệu
+Khác với network Seervada được cung cấp trực tiếp dưới dạng các hàng cạnh,
+PeMS-Bay cần kết hợp ba loại dữ liệu. Traffic trong HDF5 chứa quan sát tốc độ
+theo sensor và thời gian; CSV vị trí cung cấp tọa độ để ước tính chiều dài
+cạnh; adjacency matrix cho biết các cặp sensor có kết nối. Pipeline xuất
+traffic thành Parquet long-form (`time_index`, `timestamp`, `sensor_id`,
+`speed`), đồng thời xuất metadata vị trí, adjacency dạng bảng cạnh và mapping
+ID. Việc căn chỉnh dùng sensor ID tường minh, không giả định thứ tự hàng/cột
+của các tệp giống nhau.
 
-- Haversine là khoảng cách đường chim bay, không thay thế khoảng cách đường
-  thực tế.
-- `adj_mx_bay.pkl` là pickle; chỉ nạp file từ nguồn tin cậy vì pickle có thể
-  thực thi mã khi mở.
-- Seervada là network mẫu nhỏ và observations được mô phỏng. PEMS-BAY trong
-  pipeline chỉ dùng network con 25 cảm biến, không đại diện cho toàn bộ mạng
-  đô thị.
-- Test Seervada chỉ có 3 ngày; kết luận so sánh mô hình trên dataset này có
-  độ tin cậy hạn chế.
-- Raw PEMS-BAY có một khoảng timestamp 65 phút dù cadence danh nghĩa là 5
-  phút; báo cáo chất lượng hiện tại chưa có thống kê số mẫu được nội suy hoặc
-  loại bỏ.
+Adapter chỉ xét sensor có dữ liệu traffic hợp lệ, tọa độ và ID trong
+adjacency. Cấu hình hiện tại chọn network con liên thông gồm 25 sensor bằng
+BFS; adjacency quyết định các cạnh được xét, còn khoảng cách cạnh tính bằng
+Haversine từ tọa độ. Topology được lấy từ dữ liệu kết nối và quy tắc chọn
+network, không được tạo chỉ từ khoảng cách địa lý. Cấu hình đang để trống
+`sensor_ids`, `source`, `target`; endpoint được chọn tự động theo tiêu chí
+đường đi của adapter. Kết quả đang lưu là `400479 → 400971` với 7 simple
+paths. Năm sensor `400479, 400045, 404759, 400122, 400971` đều thuộc network
+con, nhưng không phải toàn bộ 25 sensor; danh sách đầy đủ nằm trong
+`data/processed/pemsbay/preprocessing_pipeline.json`.
+
+Khoảng cách Haversine là xấp xỉ đường chim bay, không phải chiều dài đường
+thực. Pickle có thể thực thi mã khi được nạp; chỉ dùng `adj_mx_bay.pkl` từ
+nguồn tin cậy.
+
+#### III.1.2.3. Sự khác biệt giữa PeMS-Bay và Seervada
+
+Seervada cung cấp network cạnh rõ ràng cùng bảng travel time mô phỏng đã tổng
+hợp; PeMS-Bay cung cấp tốc độ thô theo sensor/time và thông tin đồ thị/vị trí
+tách thành các tệp có định dạng khác nhau. Vì vậy Seervada chủ yếu cần nạp và
+kiểm tra network/observations, trong khi PeMS-Bay cần kiểm tra, chuẩn hóa và
+căn chỉnh sensor ID, chọn network con, tạo cạnh và tính khoảng cách từ tọa
+độ trước khi tạo travel time theo cạnh.
+
+Hai network không cần giống nhau về số nút, số cạnh, hình học hay đặc điểm
+giao thông. Mục tiêu tiền xử lý là đưa chúng về cùng hợp đồng đầu vào: danh
+sách nút/cạnh; khoảng cách cạnh với đơn vị km; travel time theo cạnh và thời
+điểm; đặc trưng phục vụ dự báo; và quy ước hướng cạnh/source/target mà thuật
+toán sử dụng. Với PEMS-Bay hiện tại, network con có 25 nút/27 cạnh; không đại
+diện toàn bộ 325 cảm biến của dữ liệu gốc.
+
+## III.2. Tiền xử lý và chuẩn hóa dữ liệu
+
+### III.2.1. Tiền xử lý dữ liệu Seervada
+
+Adapter đọc `seervada_network.csv`, suy ra nút từ hai đầu cạnh, chuẩn hóa
+khoảng cách về km và kiểm tra ID, cạnh trùng, self-loop, khoảng cách dương,
+tính liên thông và đường đi `O → T`. RCSP loader đối chiếu topology, hướng
+cạnh và khoảng cách của `seervada_rcsp_teaching.csv` với network; trường
+`time` được nạp thành chi phí tài nguyên (phút), còn giới hạn tài nguyên được
+cấu hình riêng.
+
+Adapter đọc travel time mô phỏng từ
+`seervada_travel_time_SIMULATED.csv`, kiểm tra khóa `(day, time_slot,
+edge_id)`, đơn vị và tính khớp cạnh/khoảng cách. Dữ liệu đã được tổng hợp theo
+5 slot; không có bước làm sạch chuỗi tốc độ raw cho Seervada. Tạo đặc trưng
+và chia train/validation/test theo ngày được thực hiện sau đó, giữ nguyên
+thứ tự thời gian và các tỷ lệ đã nêu ở III.1.1.3.
+
+### III.2.2. Tiền xử lý dữ liệu PeMS-Bay
+
+1. **Đọc và xác thực nguồn:** `scripts/run_preprocess_pems_bay.py` gọi
+   `pemsbay_prepare.py` để nhận diện định dạng, kiểm tra schema và đối chiếu
+   sensor ID giữa HDF5, adjacency pickle và CSV vị trí.
+2. **Chuẩn hóa traffic raw:** HDF5 wide được xuất thành Parquet long-form
+   cùng metadata, mapping ID và quality report. Bước này giữ giá trị thiếu;
+   không nội suy hay loại bỏ tốc độ trong lúc xuất.
+3. **Chọn sensor và dựng topology:** adapter lọc sensor có traffic hợp lệ,
+   tọa độ và adjacency; BFS chọn 25 sensor liên thông. Cây BFS bảo đảm kết
+   nối ban đầu; các cạnh khép chu trình có thể được thêm theo cấu hình để
+   đáp ứng điều kiện endpoint/simple-path. `direction_policy: undirected`
+   hiện hợp nhất hai chiều khi một trong hai hướng adjacency có kết nối.
+4. **Tính khoảng cách:** với mỗi cạnh được chọn, khoảng cách giữa tọa độ hai
+   sensor tính bằng Haversine, chuẩn hóa về km. Đây là ước lượng đường chim
+   bay, không phải khoảng cách đường bộ.
+5. **Làm sạch tốc độ:** giá trị không phải số, không hữu hạn hoặc `<= 0`
+   được xem là thiếu. Chỉ nội suy tuyến tính gap nội bộ tối đa 3 mẫu 5 phút
+   khi timestamp hai đầu xác nhận cadence; không ngoại suy đầu/cuối, không
+   nội suy gap dài hoặc gap có thời gian bất thường. Không đặt ngưỡng trên để
+   loại tốc độ cao. Tốc độ tại endpoint `v` được gán cho cạnh đi vào `v`.
+6. **Tạo nhãn và tổng hợp slot:** đổi mph sang km/h trong công thức
+   `travel_time_minutes = distance_km / (speed_mph × 1.609344) × 60`, rồi lấy
+   trung bình travel time theo `(edge, day, time_slot)`. Mỗi ô cần coverage
+   ít nhất 50% số mẫu 5 phút hợp lệ hoặc nội suy; một ngày chỉ giữ khi mọi
+   cạnh đạt ngưỡng ở cả 5 slot. Metadata hiện ghi 181 ngày giữ lại và 0 ngày
+   bị loại vì coverage.
+7. **Chia tập theo thời gian:** I4 sau tổng hợp có 24.435 dòng (181 × 27 × 5).
+   Chia tuần tự theo ngày theo tỷ lệ 70%/15%/15%: train 126 ngày/17.010 dòng,
+   validation 27 ngày/3.645 dòng, test 28 ngày/3.780 dòng. Các số này lấy
+   từ `data/processed/pemsbay/split_manifest.csv`.
+
+### III.2.3. Chuẩn hóa dữ liệu đầu vào cho mô hình dự báo và routing
+
+Hai adapter cung cấp network theo schema chuẩn gồm nodes, edges, khoảng cách
+km, thuộc tính hướng cạnh và adjacency list. Validator kiểm tra ID, cạnh
+trùng, self-loop, khoảng cách hữu hạn/dương, đơn vị và liên thông; kiểm tra
+khả năng đi từ source đến target khi cặp endpoint được cung cấp. Seervada
+dùng khoảng cách từ CSV; PeMS-Bay dùng khoảng cách Haversine. Khác biệt về
+topology vẫn được giữ nguyên, không ép hai network có cùng số nút/cạnh.
+
+Với dữ liệu dự báo, nhãn của cả hai bộ là `travel_time` tính bằng phút.
+Feature matrix gồm `distance`, `is_weekend` và one-hot encoding cho `edge_id`,
+`time_slot`, `day_of_week`. Mean/std chuẩn hóa `distance` và category
+vocabulary chỉ được fit trên train; các biến nhị phân/one-hot là 0/1 và nhãn
+không chuẩn hóa. Group Mean backoff qua `(edge, slot, day-of-week)`,
+`(edge, slot)`, `(edge)` rồi trung bình toàn cục; Linear Regression dùng các
+feature đã mã hóa và bỏ các cột baseline cấu hình; MLP dùng cùng đầu vào mà
+không có bước chuẩn hóa riêng ngoài `distance`.
+
+Dữ liệu được chia theo ngày, không shuffle: Seervada 80%/10%/10% (24/3/3
+ngày), PeMS-Bay 70%/15%/15% (126/27/28 ngày). Validation dùng chọn mô hình
+hoặc lựa chọn theo slot; test chỉ dùng chấm cuối cùng. Với routing, trọng số
+cạnh được lấy từ network và các dự đoán/quan sát travel time theo cạnh-slot;
+source/target và quy ước directed/undirected phải thuộc network tương ứng.
+Seervada hiện cấu hình `O → T`; PeMS-Bay dùng endpoint được adapter chọn tự
+động nếu YAML không chỉ định cặp.
 
 ## Tạo báo cáo hợp nhất
 

@@ -63,6 +63,10 @@ optional auxiliary model-data branch and is not used downstream. Speeds are
 interpreted as mph by default and converted with approximate Haversine edge
 length; short-gap-only interpolation is capped by `max_speed_imputation_gap`.
 
+WS6 always includes NeuralNet in the routing comparison, even when validation
+metrics favor GroupMean or LinearRegression. Validation metrics still determine
+the primary baseline; NN results remain visible in the routing outputs.
+
 RCSP requires a configured resource input. WS2 requires PuLP/CBC. Model and
 plot stages require scikit-learn and Matplotlib. CSV input/output uses Pandas.
 The combined report is written to `docs/report/<dataset>_report.md`;

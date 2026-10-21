@@ -1,4 +1,4 @@
-"""Dataset-neutral preprocessing schemas, readers, and Seervada adapter (Module M4.1)."""
+"""Dataset-neutral preprocessing schemas and readers."""
 
 from .dataset import (
     ObservationLike,
@@ -20,9 +20,6 @@ from .observations import (
     feature_rows_as_mappings,
     load_observations,
     load_supervised_dataset,
-)
-from .seervada import (
-    load_traffic_observations,
 )
 
 __all__ = [
