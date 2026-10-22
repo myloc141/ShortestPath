@@ -305,3 +305,42 @@ Seervada hiện cấu hình `O → T`; PeMS-Bay dùng endpoint được adapter 
 `src.report.build_report(...)`; output mặc định là
 `docs/report/<dataset>_report.md`. Nếu một nhóm kết quả chưa tồn tại, báo cáo
 hiển thị `chưa có kết quả` cho mục tương ứng thay vì dừng.
+
+## Repo
+
+```
+ShortestPath/
+├── data/
+│   ├── raw/
+│   └── processed/<ds>/
+├── src/
+│   ├── common/               # M0
+│   ├── network/              # M1
+│   ├── shortest_path/        # M2
+│   ├── rcsp/                 # M3
+│   ├── preprocess/           # M4
+│   ├── models/
+│   │   ├── baselines/        # M5
+│   │   └── nn/               # M6
+│   ├── evaluation/           # M7
+│   ├── routing/              # M8
+│   ├── report/               # M9
+│   └── adapters/	
+│       ├── base.py          # lớp DatasetAdapter: khai báo hàm bắt buộc
+│       ├── seervada.py
+│       ├── pemsbay.py
+│       └── registry.py      # tên dataset → adapter
+├── scripts/                  # CLI
+├── artifacts/<ds>/
+│   ├── network/  paths/  rcsp/
+│   └──predictions/  metrics/  routing/
+├── configs/                  # dataset, time_limits, slots, seed
+│   ├── seervada.yaml
+│   └── pemsbay.yaml
+├── docs/
+│   ├── workstreams/   # WS1–WS6: Overview, Tasks, Tech Specs, Deliverables
+│   ├── contracts/            # I1–I8, quy ước chung
+│   └── report/
+├── README.md                 # cách cài và chạy từ môi trường sạch
+└── requirements.txt          # khóa phiên bản thư viện
+```
