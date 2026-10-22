@@ -10,26 +10,9 @@ Cài dependencies từ file chuẩn:
 python -m pip install -r requirements.txt
 ```
 
-## Sơ đồ phụ thuộc
-
-```text
-M0 common ──> M1 network ──┬──> M2 shortest_path ──> M3 rcsp
-                           ├──> M3 rcsp                │
-                           ├──> M4 preprocess/adapter  │
-                           └──> M8 routing <───────────┘
-                                  ▲    ▲
-                    ┌─────────────┘    └── I7: weighted shortest path
-                    │
-M4 ──> M5 baselines ─┼──> M7 evaluation ────────────┐
-  └──> M6 nn ───────┘                               │
-M5/M6 ── I5 ──> M7, M8                              │
-M2 ── I2 ───────────────────────────────────────────┤
-M3 ── I3 ───────────────────────────────────────────┼──> M9 report
-M8 ── I8 ───────────────────────────────────────────┘
-```
-
 ## Thứ tự chạy
 
+**Seervada Network**
 ```powershell
 python scripts\run_workstream01.py --dataset seervada --artifacts-root .
 python scripts\run_workstream02.py --dataset seervada --artifacts-root .
@@ -40,6 +23,17 @@ python scripts\run_workstream06.py --dataset seervada --artifacts-root .
 python scripts\make_report.py --dataset seervada --artifacts-root .
 ```
 
+**PeMS-BAY**
+```powershell
+python scripts\run_preprocess_pems_bay.py --input-dir data\raw_pems_bay --artifacts-root . --log-level INFO
+python scripts\run_workstream01.py --dataset pemsbay --artifacts-root .
+python scripts\run_workstream03.py --dataset pemsbay --artifacts-root .
+python scripts\run_workstream04.py --dataset pemsbay --artifacts-root .
+python scripts\run_workstream05.py --dataset pemsbay --artifacts-root .
+python scripts\run_workstream06.py --dataset pemsbay --artifacts-root .
+python scripts\make_report.py --dataset pemsbay --artifacts-root .
+```
+
 Tất cả runner dùng chung `stage_dir(dataset, stage, root)` để xác định đường
 dẫn. `--artifacts-root` mặc định là gốc repository và là gốc thay thế cho cây
 `artifacts/`, `data/processed/` và `docs/report/`. `--output-dir` vẫn được nhận
@@ -48,6 +42,7 @@ truyền cho mọi stage để downstream đọc đúng các file upstream. Khi 
 ở cấu trúc mới, runner chỉ với Seervada sẽ thử `workstreamXX/outputs/` cũ và
 cảnh báo; file không bị di chuyển.
 
+## Workstreams
 | Stage | Input chính | Output |
 |---|---|---|
 | WS1 | YAML adapter và nguồn network | `artifacts/<ds>/network/` (I1), `artifacts/<ds>/paths/` (I2) |
@@ -59,21 +54,115 @@ cảnh báo; file không bị di chuyển.
 | make_report | WS1 paths, WS2 RCSP, WS4/5 metrics, WS6 routing | `docs/report/<ds>_report.md` |
 | build_dataset (nhánh phụ) | WS1 I1 và PEMS-BAY `traffic_speed_long.parquet` | `data/processed/pemsbay/model_dataset/` (không được WS4–WS6 dùng) |
 
-Raw PEMS-BAY Parquet và quality report được ghi vào
-`data/processed/pemsbay/`. Luồng chính chạy WS1 rồi WS3; WS3 gọi adapter để
-tổng hợp thành I4 trước khi chia ngày train/valid/test. WS4–WS6 chỉ đọc các
-split I4 này. `build_dataset.py` là nhánh phụ tạo dữ liệu model riêng trong
-`data/processed/pemsbay/model_dataset/`, không phải prerequisite của WS4–WS6.
+## Hợp đồng I1–I8
 
-Ví dụ luồng chính:
+Schema cột bắt buộc, file trao đổi và producer/consumer cụ thể được ghi trong
+[docs/contracts/interfaces.md](docs/contracts/interfaces.md).
 
-```powershell
-python scripts\run_workstream01.py --dataset pemsbay --artifacts-root .
-python scripts\run_workstream03.py --dataset pemsbay --artifacts-root .
-python scripts\run_workstream04.py --dataset pemsbay --artifacts-root .
-python scripts\run_workstream05.py --dataset pemsbay --artifacts-root .
-python scripts\run_workstream06.py --dataset pemsbay --artifacts-root .
+| ID | Từ → Đến | Nội dung / cơ chế | Trạng thái |
+|---|---|---|---|
+| I1 | M1 → M2, M3, M4, M8 | Network nodes/edges/problem parameters; CSV loader và adapter | Đã có |
+| I2 | M2 → M3, M8, M9 | Simple paths và shortest path; file CSV + API | Đã có |
+| I3 | M3 → M8, M9 | WS2 ghi `rcsp_sensitivity.csv`; WS6 đọc các dòng `Optimal`, chuyển route thành `RouteReference` trung gian và chấm bằng actual test. M8 không import `src.rcsp`. | Đã có cho dataset có RCSP input |
+| I4 | M4 → M5, M6, M7, M8 | Train/valid/test, fitted pipeline, split manifest; file | Đã có |
+| I5 | M5, M6 → M7, M8 | Prediction theo khóa `edge_id, day, time_slot`; file | Đã có |
+| I6 | M7 ← M5, M6; M7 → M9 | Hàm evaluation và bảng metrics; API + file | Đã có |
+| I7 | M8 → M2 | Gọi shortest path với edge weights tùy chọn | Đã có |
+| I8 | M8 → M9 | Routing result theo slot và `method_family`/nguồn trọng số; file | Đã có |
+
+## Module M0–M9
+
+| ID | Module | Trách nhiệm | Trạng thái |
+|---|---|---|---|
+| M0 | `src/common` | Cấu hình pipeline, lỗi và contract, schema/validator dùng chung, I/O có metadata và regression metrics | Đã có |
+| M1 | `src/network`, `src/adapters` | Schema network chuẩn, adjacency, validation; adapter Seervada/PEMS-BAY dựng network và observations | Đã có; PEMS-BAY cần dữ liệu traffic đã preprocess |
+| M2 | `src/shortest_path` | Dijkstra (hỗ trợ edge weights tùy chọn), liệt kê simple paths và xác minh kết quả | Đã có |
+| M3 | `src/rcsp` | Nạp/xác thực RCSP, vét cạn, 0–1 MILP, sensitivity và kiểm chứng | Đã có; MILP cần PuLP/CBC và WS2 cần RCSP input |
+| M4 | `src/preprocess` | Làm sạch/tổng hợp observations, tạo features và chronological train/valid/test splits | Đã có; WS3 xuất I4 vào `data/processed/<dataset>/` |
+| M5 | `src/models/baselines` | Group Mean và Linear Regression cho dự đoán travel time | Đã có; WS4 |
+| M6 | `src/models/nn` | MLPRegressor, fit/predict và training history | Đã có; WS5 |
+| M7 | `src/evaluation`, `src/common/metrics.py` | Regression metrics, kiểm tra alignment prediction và chọn model/slot bằng validation metrics | Đã có |
+| M8 | `src/routing` | Chọn route theo edge weights hoặc route reference; chấm actual time/regret và so sánh phương pháp | Đã có; WS6 |
+| M9 | `src/report` | Render I2, I3, I6, I8 thành Markdown và biểu đồ; `build_report` tổng hợp kết quả | Đã có |
+
+Adapter implement `build_network()` và `build_observations()`; khoảng cách được
+chuẩn hóa về km và travel time về phút. PEMS-BAY dùng Haversine xấp xỉ và gán
+tốc độ sensor đích cho cạnh đi vào sensor đó.
+
+Contract I3→M8: M3/WS2 xuất các route và giới hạn trong file CSV
+`rcsp_sensitivity.csv`. M8 không phụ thuộc package RCSP; WS6 parse đường đi và
+truyền mỗi nghiệm tối ưu qua `RouteReference`. Mỗi route phải nối đúng source
+với target và chỉ đi trên cạnh có trong network. Actual test travel time dùng
+để tính `actual_time` và regret so với Oracle.
+
+## Dataset
+
+### Seervada
+
+Seervada là mạng mẫu gồm 7 nút (`O, A, B, C, D, E, T`) và 12 cạnh. Bộ dữ liệu
+nghiên cứu được lưu thành ba CSV theo các mục đích khác nhau:
+
+| Tệp | Nội dung |
+|---|---|
+| `data/processed_seervada/seervada_network.csv` | Danh sách cạnh với hai đầu nút, khoảng cách (km) và cờ hướng cạnh (`directed`). |
+| `data/processed_seervada/seervada_rcsp_teaching.csv` | Danh sách cạnh, khoảng cách, thời gian tài nguyên (`time`, phút) và cờ hướng cạnh; 12 dòng cạnh. |
+| `data/processed_seervada/seervada_travel_time_SIMULATED.csv` | Travel time mô phỏng theo cạnh, ngày và time slot; có khóa thời gian và thông tin cạnh để dùng làm dữ liệu dự báo. |
+
+`seervada_network.csv` là đầu vào network cho adapter Seervada: tập nút được
+suy ra từ hai đầu cạnh, cạnh được chuyển sang schema chuẩn rồi thành
+adjacency list. Network này được dùng trong các phép tìm đường; cấu hình
+hiện tại đặt source–target là `O → T`.
+
+`seervada_rcsp_teaching.csv` cung cấp giá trị tài nguyên `time` trên từng
+cạnh để tạo bài toán RCSP và được đối chiếu với topology, hướng cạnh, khoảng
+cách của network. Các giới hạn tài nguyên là tham số của bài toán, không phải
+cột trong CSV; cấu hình `configs/seervada.yaml` hiện để `time_limits` và
+`slots` rỗng.
+
+`seervada_travel_time_SIMULATED.csv` cung cấp nhãn travel time theo ngày/slot
+cho các workstream tiền xử lý, huấn luyện và đánh giá mô hình dự báo. Adapter
+kiểm tra các khóa quan sát, đơn vị, cạnh và tính nhất quán khoảng cách với
+network.
+
+Dữ liệu mô phỏng có 30 ngày đánh số, không có ngày lịch, 5 time slot và
+1.800 dòng (30 ngày × 12 cạnh × 5 slot). Các slot lần lượt là 06:00–08:00,
+08:00–10:00, 11:30–13:30, 16:30–18:30 và 19:30–21:30. Chia theo thứ tự ngày
+với tỷ lệ train/validation/test 80%/10%/10%: train 24 ngày (1.440 dòng),
+validation 3 ngày (180 dòng), test ngày 28–30 (180 dòng).
+
+Vì đây là network nhỏ và travel time mô phỏng, thí nghiệm Seervada chủ yếu
+giúp kiểm tra cách vận hành của phương pháp trong môi trường có cấu trúc rõ
+ràng. Kết quả không phải bằng chứng về độ chính xác trên giao thông thực tế;
+test chỉ gồm 3 ngày nên so sánh mô hình cũng có độ tin cậy hạn chế.
+
+### PeMS-Bay
+
+PeMS-Bay là dữ liệu tốc độ giao thông khu vực Bay Area được sử dụng trong
+công trình DCRNN. BibTeX:
+
+```bibtex
+@inproceedings{li2018dcrnn_traffic,
+  title={Diffusion Convolutional Recurrent Neural Network: Data-Driven Traffic Forecasting},
+  author={Li, Yaguang and Yu, Rose and Shahabi, Cyrus and Liu, Yan},
+  booktitle={International Conference on Learning Representations (ICLR '18)},
+  year={2018}
+}
 ```
+
+Ba nguồn dữ liệu được công bố cùng dự án
+[DCRNN](https://github.com/liyaguang/DCRNN):
+
+| Tệp | Cấu trúc và vai trò |
+|---|---|
+| [`pems-bay.h5`](https://drive.google.com/open?id=10FOTa6HXPqX8PfWRoRwcFnW9BrNZEIX) ([Baidu Yun mirror](https://pan.baidu.com/s/14Yy9isAIZYdU__OYEQGa_g)) | HDF5 chứa DataFrame tốc độ dạng wide: hàng là timestamp, cột là sensor ID. |
+| [`graph_sensor_locations_bay.csv`](https://github.com/liyaguang/DCRNN/blob/master/data/sensor_graph/graph_sensor_locations_bay.csv) | CSV ánh xạ sensor ID tới latitude/longitude. |
+| [`adj_mx_bay.pkl`](https://github.com/liyaguang/DCRNN/blob/master/data/sensor_graph/adj_mx_bay.pkl) | Pickle chứa danh sách sensor ID, index map và adjacency matrix vuông; biểu diễn kết nối giữa cảm biến. |
+
+Bản HDF5 trong repo có 52.116 timestamp và 325 cảm biến, từ 2017-01-01 đến
+2017-06-30 (181 ngày). Cadence danh nghĩa là 5 phút; kiểm tra index thấy một
+khoảng dài 65 phút. Đây là thống kê kiểm tra trực tiếp raw HDF5. Quality
+report hiện lưu trong repo chưa có thống kê đầu vào nên không dùng report đó
+để khẳng định số mẫu được nội suy hoặc loại bỏ.
 
 PEMS-BAY để `sensor_ids`, `source` và `target` trống theo mặc định. Adapter
 chọn `n_sensors` cảm biến liên thông bằng BFS từ sensor bậc cao nhất (thử
@@ -134,169 +223,9 @@ theo ngày tuần tự, không shuffle; one-hot category và scaler distance ch�
 trên train. Các tên file X/y, raw splits, manifest và pipeline JSON được giữ
 tương thích với WS4/WS5 hiện tại.
 
-## Hợp đồng I1–I8
+## Tiền xử lý và chuẩn hóa dữ liệu
 
-Schema cột bắt buộc, file trao đổi và producer/consumer cụ thể được ghi trong
-[docs/contracts/interfaces.md](docs/contracts/interfaces.md).
-
-| ID | Từ → Đến | Nội dung / cơ chế | Trạng thái |
-|---|---|---|---|
-| I1 | M1 → M2, M3, M4, M8 | Network nodes/edges/problem parameters; CSV loader và adapter | Đã có |
-| I2 | M2 → M3, M8, M9 | Simple paths và shortest path; file CSV + API | Đã có |
-| I3 | M3 → M8, M9 | WS2 ghi `rcsp_sensitivity.csv`; WS6 đọc các dòng `Optimal`, chuyển route thành `RouteReference` trung gian và chấm bằng actual test. M8 không import `src.rcsp`. | Đã có cho dataset có RCSP input |
-| I4 | M4 → M5, M6, M7, M8 | Train/valid/test, fitted pipeline, split manifest; file | Đã có |
-| I5 | M5, M6 → M7, M8 | Prediction theo khóa `edge_id, day, time_slot`; file | Đã có |
-| I6 | M7 ← M5, M6; M7 → M9 | Hàm evaluation và bảng metrics; API + file | Đã có |
-| I7 | M8 → M2 | Gọi shortest path với edge weights tùy chọn | Đã có |
-| I8 | M8 → M9 | Routing result theo slot và `method_family`/nguồn trọng số; file | Đã có |
-
-## Module M0–M9
-
-| ID | Module | Trách nhiệm | Trạng thái |
-|---|---|---|---|
-| M0 | `src/common` | Cấu hình pipeline, lỗi và contract, schema/validator dùng chung, I/O có metadata và regression metrics | Đã có |
-| M1 | `src/network`, `src/adapters` | Schema network chuẩn, adjacency, validation; adapter Seervada/PEMS-BAY dựng network và observations | Đã có; PEMS-BAY cần dữ liệu traffic đã preprocess |
-| M2 | `src/shortest_path` | Dijkstra (hỗ trợ edge weights tùy chọn), liệt kê simple paths và xác minh kết quả | Đã có |
-| M3 | `src/rcsp` | Nạp/xác thực RCSP, vét cạn, 0–1 MILP, sensitivity và kiểm chứng | Đã có; MILP cần PuLP/CBC và WS2 cần RCSP input |
-| M4 | `src/preprocess` | Làm sạch/tổng hợp observations, tạo features và chronological train/valid/test splits | Đã có; WS3 xuất I4 vào `data/processed/<dataset>/` |
-| M5 | `src/models/baselines` | Group Mean và Linear Regression cho dự đoán travel time | Đã có; WS4 |
-| M6 | `src/models/nn` | MLPRegressor, fit/predict và training history | Đã có; WS5 |
-| M7 | `src/evaluation`, `src/common/metrics.py` | Regression metrics, kiểm tra alignment prediction và chọn model/slot bằng validation metrics | Đã có |
-| M8 | `src/routing` | Chọn route theo edge weights hoặc route reference; chấm actual time/regret và so sánh phương pháp | Đã có; WS6 |
-| M9 | `src/report` | Render I2, I3, I6, I8 thành Markdown và biểu đồ; `build_report` tổng hợp kết quả | Đã có |
-
-Adapter implement `build_network()` và `build_observations()`; khoảng cách được
-chuẩn hóa về km và travel time về phút. PEMS-BAY dùng Haversine xấp xỉ và gán
-tốc độ sensor đích cho cạnh đi vào sensor đó.
-
-Contract I3→M8: M3/WS2 xuất các route và giới hạn trong file CSV
-`rcsp_sensitivity.csv`. M8 không phụ thuộc package RCSP; WS6 parse đường đi và
-truyền mỗi nghiệm tối ưu qua `RouteReference`. Mỗi route phải nối đúng source
-với target và chỉ đi trên cạnh có trong network. Actual test travel time dùng
-để tính `actual_time` và regret so với Oracle.
-
-## III.1. Dữ liệu nghiên cứu
-
-### III.1.1. Dữ liệu mạng Seervada và dữ liệu mô phỏng
-
-#### III.1.1.1. Tổng quan nguồn dữ liệu và cấu trúc ba tệp
-
-Seervada là mạng mẫu gồm 7 nút (`O, A, B, C, D, E, T`) và 12 cạnh. Bộ dữ liệu
-nghiên cứu được lưu thành ba CSV theo các mục đích khác nhau:
-
-| Tệp | Nội dung |
-|---|---|
-| `data/processed_seervada/seervada_network.csv` | Danh sách cạnh với hai đầu nút, khoảng cách (km) và cờ hướng cạnh (`directed`). |
-| `data/processed_seervada/seervada_rcsp_teaching.csv` | Danh sách cạnh, khoảng cách, thời gian tài nguyên (`time`, phút) và cờ hướng cạnh; 12 dòng cạnh. |
-| `data/processed_seervada/seervada_travel_time_SIMULATED.csv` | Travel time mô phỏng theo cạnh, ngày và time slot; có khóa thời gian và thông tin cạnh để dùng làm dữ liệu dự báo. |
-
-#### III.1.1.2. Vai trò của từng tệp trong bài toán nghiên cứu
-
-`seervada_network.csv` là đầu vào network cho adapter Seervada: tập nút được
-suy ra từ hai đầu cạnh, cạnh được chuyển sang schema chuẩn rồi thành
-adjacency list. Network này được dùng trong các phép tìm đường; cấu hình
-hiện tại đặt source–target là `O → T`.
-
-`seervada_rcsp_teaching.csv` cung cấp giá trị tài nguyên `time` trên từng
-cạnh để tạo bài toán RCSP và được đối chiếu với topology, hướng cạnh, khoảng
-cách của network. Các giới hạn tài nguyên là tham số của bài toán, không phải
-cột trong CSV; cấu hình `configs/seervada.yaml` hiện để `time_limits` và
-`slots` rỗng.
-
-`seervada_travel_time_SIMULATED.csv` cung cấp nhãn travel time theo ngày/slot
-cho các workstream tiền xử lý, huấn luyện và đánh giá mô hình dự báo. Adapter
-kiểm tra các khóa quan sát, đơn vị, cạnh và tính nhất quán khoảng cách với
-network.
-
-#### III.1.1.3. Đặc điểm và giới hạn của dữ liệu mô phỏng
-
-Dữ liệu mô phỏng có 30 ngày đánh số, không có ngày lịch, 5 time slot và
-1.800 dòng (30 ngày × 12 cạnh × 5 slot). Các slot lần lượt là 06:00–08:00,
-08:00–10:00, 11:30–13:30, 16:30–18:30 và 19:30–21:30. Chia theo thứ tự ngày
-với tỷ lệ train/validation/test 80%/10%/10%: train 24 ngày (1.440 dòng),
-validation 3 ngày (180 dòng), test ngày 28–30 (180 dòng).
-
-Vì đây là network nhỏ và travel time mô phỏng, thí nghiệm Seervada chủ yếu
-giúp kiểm tra cách vận hành của phương pháp trong môi trường có cấu trúc rõ
-ràng. Kết quả không phải bằng chứng về độ chính xác trên giao thông thực tế;
-test chỉ gồm 3 ngày nên so sánh mô hình cũng có độ tin cậy hạn chế.
-
-### III.1.2. Dữ liệu giao thông thực tế PeMS-Bay
-
-#### III.1.2.1. Nguồn gốc và tổng quan ba tệp dữ liệu
-
-PeMS-Bay là dữ liệu tốc độ giao thông khu vực Bay Area được sử dụng trong
-công trình DCRNN. BibTeX:
-
-```bibtex
-@inproceedings{li2018dcrnn_traffic,
-  title={Diffusion Convolutional Recurrent Neural Network: Data-Driven Traffic Forecasting},
-  author={Li, Yaguang and Yu, Rose and Shahabi, Cyrus and Liu, Yan},
-  booktitle={International Conference on Learning Representations (ICLR '18)},
-  year={2018}
-}
-```
-
-Ba nguồn dữ liệu được công bố cùng dự án
-[DCRNN](https://github.com/liyaguang/DCRNN):
-
-| Tệp | Cấu trúc và vai trò |
-|---|---|
-| [`pems-bay.h5`](https://drive.google.com/open?id=10FOTa6HXPqX8PfWRoRwcFnW9BrNZEIX) ([Baidu Yun mirror](https://pan.baidu.com/s/14Yy9isAIZYdU__OYEQGa_g)) | HDF5 chứa DataFrame tốc độ dạng wide: hàng là timestamp, cột là sensor ID. |
-| [`graph_sensor_locations_bay.csv`](https://github.com/liyaguang/DCRNN/blob/master/data/sensor_graph/graph_sensor_locations_bay.csv) | CSV ánh xạ sensor ID tới latitude/longitude. |
-| [`adj_mx_bay.pkl`](https://github.com/liyaguang/DCRNN/blob/master/data/sensor_graph/adj_mx_bay.pkl) | Pickle chứa danh sách sensor ID, index map và adjacency matrix vuông; biểu diễn kết nối giữa cảm biến. |
-
-Bản HDF5 trong repo có 52.116 timestamp và 325 cảm biến, từ 2017-01-01 đến
-2017-06-30 (181 ngày). Cadence danh nghĩa là 5 phút; kiểm tra index thấy một
-khoảng dài 65 phút. Đây là thống kê kiểm tra trực tiếp raw HDF5. Quality
-report hiện lưu trong repo chưa có thống kê đầu vào nên không dùng report đó
-để khẳng định số mẫu được nội suy hoặc loại bỏ.
-
-#### III.1.2.2. Đặc điểm dữ liệu tốc độ giao thông và mạng cảm biến
-
-Khác với network Seervada được cung cấp trực tiếp dưới dạng các hàng cạnh,
-PeMS-Bay cần kết hợp ba loại dữ liệu. Traffic trong HDF5 chứa quan sát tốc độ
-theo sensor và thời gian; CSV vị trí cung cấp tọa độ để ước tính chiều dài
-cạnh; adjacency matrix cho biết các cặp sensor có kết nối. Pipeline xuất
-traffic thành Parquet long-form (`time_index`, `timestamp`, `sensor_id`,
-`speed`), đồng thời xuất metadata vị trí, adjacency dạng bảng cạnh và mapping
-ID. Việc căn chỉnh dùng sensor ID tường minh, không giả định thứ tự hàng/cột
-của các tệp giống nhau.
-
-Adapter chỉ xét sensor có dữ liệu traffic hợp lệ, tọa độ và ID trong
-adjacency. Cấu hình hiện tại chọn network con liên thông gồm 25 sensor bằng
-BFS; adjacency quyết định các cạnh được xét, còn khoảng cách cạnh tính bằng
-Haversine từ tọa độ. Topology được lấy từ dữ liệu kết nối và quy tắc chọn
-network, không được tạo chỉ từ khoảng cách địa lý. Cấu hình đang để trống
-`sensor_ids`, `source`, `target`; endpoint được chọn tự động theo tiêu chí
-đường đi của adapter. Kết quả đang lưu là `400479 → 400971` với 7 simple
-paths. Năm sensor `400479, 400045, 404759, 400122, 400971` đều thuộc network
-con, nhưng không phải toàn bộ 25 sensor; danh sách đầy đủ nằm trong
-`data/processed/pemsbay/preprocessing_pipeline.json`.
-
-Khoảng cách Haversine là xấp xỉ đường chim bay, không phải chiều dài đường
-thực. Pickle có thể thực thi mã khi được nạp; chỉ dùng `adj_mx_bay.pkl` từ
-nguồn tin cậy.
-
-#### III.1.2.3. Sự khác biệt giữa PeMS-Bay và Seervada
-
-Seervada cung cấp network cạnh rõ ràng cùng bảng travel time mô phỏng đã tổng
-hợp; PeMS-Bay cung cấp tốc độ thô theo sensor/time và thông tin đồ thị/vị trí
-tách thành các tệp có định dạng khác nhau. Vì vậy Seervada chủ yếu cần nạp và
-kiểm tra network/observations, trong khi PeMS-Bay cần kiểm tra, chuẩn hóa và
-căn chỉnh sensor ID, chọn network con, tạo cạnh và tính khoảng cách từ tọa
-độ trước khi tạo travel time theo cạnh.
-
-Hai network không cần giống nhau về số nút, số cạnh, hình học hay đặc điểm
-giao thông. Mục tiêu tiền xử lý là đưa chúng về cùng hợp đồng đầu vào: danh
-sách nút/cạnh; khoảng cách cạnh với đơn vị km; travel time theo cạnh và thời
-điểm; đặc trưng phục vụ dự báo; và quy ước hướng cạnh/source/target mà thuật
-toán sử dụng. Với PEMS-Bay hiện tại, network con có 25 nút/27 cạnh; không đại
-diện toàn bộ 325 cảm biến của dữ liệu gốc.
-
-## III.2. Tiền xử lý và chuẩn hóa dữ liệu
-
-### III.2.1. Tiền xử lý dữ liệu Seervada
+### Tiền xử lý dữ liệu Seervada
 
 Adapter đọc `seervada_network.csv`, suy ra nút từ hai đầu cạnh, chuẩn hóa
 khoảng cách về km và kiểm tra ID, cạnh trùng, self-loop, khoảng cách dương,
@@ -312,7 +241,7 @@ edge_id)`, đơn vị và tính khớp cạnh/khoảng cách. Dữ liệu đã �
 và chia train/validation/test theo ngày được thực hiện sau đó, giữ nguyên
 thứ tự thời gian và các tỷ lệ đã nêu ở III.1.1.3.
 
-### III.2.2. Tiền xử lý dữ liệu PeMS-Bay
+### Tiền xử lý dữ liệu PeMS-Bay
 
 1. **Đọc và xác thực nguồn:** `scripts/run_preprocess_pems_bay.py` gọi
    `pemsbay_prepare.py` để nhận diện định dạng, kiểm tra schema và đối chiếu
