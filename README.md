@@ -273,7 +273,7 @@ thứ tự thời gian và các tỷ lệ đã nêu ở III.1.1.3.
    validation 27 ngày/3.645 dòng, test 28 ngày/3.780 dòng. Các số này lấy
    từ `data/processed/pemsbay/split_manifest.csv`.
 
-### III.2.3. Chuẩn hóa dữ liệu đầu vào cho mô hình dự báo và routing
+### Chuẩn hóa dữ liệu đầu vào cho mô hình dự báo và routing
 
 Hai adapter cung cấp network theo schema chuẩn gồm nodes, edges, khoảng cách
 km, thuộc tính hướng cạnh và adjacency list. Validator kiểm tra ID, cạnh
